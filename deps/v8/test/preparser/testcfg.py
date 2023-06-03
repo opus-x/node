@@ -47,25 +47,25 @@ class TestLoader(testsuite.TestLoader):
 # TODO(tmrts): refactor the python template parsing then use the TestLoader.
 class TestSuite(testsuite.TestSuite):
   def _ParsePythonTestTemplates(self, result, filename):
-    pathname = os.path.join(self.root, filename + ".pyt")
+    pathname = os.path.join(self.root, f"{filename}.pyt")
     def Test(name, source, expectation):
       source = source.replace("\n", " ")
       path = os.path.join(filename, name)
-      if expectation:
-        template_flags = ["--throws"]
-      else:
-        template_flags = []
+      template_flags = ["--throws"] if expectation else []
       test = self._create_test(path, source, template_flags)
       result.append(test)
+
     def Template(name, source):
       def MkTest(replacement, expectation):
         testname = name
         testsource = source
         for key in replacement.keys():
-          testname = testname.replace("$" + key, replacement[key]);
-          testsource = testsource.replace("$" + key, replacement[key]);
+          testname = testname.replace(f"${key}", replacement[key]);
+          testsource = testsource.replace(f"${key}", replacement[key]);
         Test(testname, testsource, expectation)
+
       return MkTest
+
     execfile(pathname, {"Test": Test, "Template": Template})
 
   def ListTests(self):

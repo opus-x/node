@@ -57,8 +57,7 @@ def warn_if_counter_may_have_saturated(dispatches_table):
   for source, counters_from_source in iteritems(dispatches_table):
     for destination, counter in iteritems(counters_from_source):
       if counter == __COUNTER_MAX:
-        print("WARNING: {} -> {} may have saturated.".format(source,
-                                                             destination))
+        print(f"WARNING: {source} -> {destination} may have saturated.")
 
 
 def find_top_bytecode_dispatch_pairs(dispatches_table, top_count):
@@ -74,16 +73,16 @@ def find_top_bytecode_dispatch_pairs(dispatches_table, top_count):
 def print_top_bytecode_dispatch_pairs(dispatches_table, top_count):
   top_bytecode_dispatch_pairs = (
     find_top_bytecode_dispatch_pairs(dispatches_table, top_count))
-  print("Top {} bytecode dispatch pairs:".format(top_count))
+  print(f"Top {top_count} bytecode dispatch pairs:")
   for source, destination, counter in top_bytecode_dispatch_pairs:
     print("{:>12d}\t{} -> {}".format(counter, source, destination))
 
 
 def find_top_bytecodes(dispatches_table):
-  top_bytecodes = []
-  for bytecode, counters_from_bytecode in iteritems(dispatches_table):
-    top_bytecodes.append((bytecode, sum(itervalues(counters_from_bytecode))))
-
+  top_bytecodes = [
+      (bytecode, sum(itervalues(counters_from_bytecode)))
+      for bytecode, counters_from_bytecode in iteritems(dispatches_table)
+  ]
   top_bytecodes.sort(key=lambda x: x[1], reverse=True)
   return top_bytecodes
 
@@ -104,12 +103,10 @@ def find_top_dispatch_sources_and_destinations(
       count = destinations[bytecode]
       sources.append((source, count, count / total))
 
-  destinations = []
   bytecode_destinations = dispatches_table[bytecode]
   bytecode_total = float(sum(itervalues(bytecode_destinations)))
-  for destination, count in iteritems(bytecode_destinations):
-    destinations.append((destination, count, count / bytecode_total))
-
+  destinations = [(destination, count, count / bytecode_total)
+                  for destination, count in iteritems(bytecode_destinations)]
   return (heapq.nlargest(top_count, sources,
                          key=lambda x: x[2 if sort_source_relative else 1]),
           heapq.nlargest(top_count, destinations, key=lambda x: x[1]))
@@ -119,11 +116,11 @@ def print_top_dispatch_sources_and_destinations(dispatches_table, bytecode,
                                                 top_count, sort_relative):
   top_sources, top_destinations = find_top_dispatch_sources_and_destinations(
       dispatches_table, bytecode, top_count, sort_relative)
-  print("Top sources of dispatches to {}:".format(bytecode))
+  print(f"Top sources of dispatches to {bytecode}:")
   for source_name, counter, ratio in top_sources:
     print("{:>12d}\t{:>5.1f}%\t{}".format(counter, ratio * 100, source_name))
 
-  print("\nTop destinations of dispatches from {}:".format(bytecode))
+  print(f"\nTop destinations of dispatches from {bytecode}:")
   for destination_name, counter, ratio in top_destinations:
     print("{:>12d}\t{:>5.1f}%\t{}".format(counter, ratio * 100, destination_name))
 

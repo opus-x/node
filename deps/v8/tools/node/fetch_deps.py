@@ -49,8 +49,7 @@ GCLIENT_SOLUTION = [
 def EnsureGit(v8_path):
   def git(args):
     # shell=True needed on Windows to resolve git.bat.
-    return subprocess.check_output(
-        "git " + args, cwd=v8_path, shell=True).strip()
+    return subprocess.check_output(f"git {args}", cwd=v8_path, shell=True).strip()
 
   expected_git_dir = os.path.join(v8_path, ".git")
   actual_git_dir = git("rev-parse --absolute-git-dir")
@@ -79,7 +78,7 @@ def FetchDeps(v8_path):
     # gclient needs to have depot_tools in the PATH.
     env["PATH"] = depot_tools + os.pathsep + env["PATH"]
     gclient = os.path.join(depot_tools, "gclient.py")
-    spec = "solutions = %s" % GCLIENT_SOLUTION
+    spec = f"solutions = {GCLIENT_SOLUTION}"
     subprocess.check_call([sys.executable, gclient, "sync", "--spec", spec],
                            cwd=os.path.join(v8_path, os.path.pardir),
                            env=env)

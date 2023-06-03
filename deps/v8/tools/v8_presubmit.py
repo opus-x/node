@@ -87,11 +87,10 @@ def CppLintWorker(command):
       out_line = process.stderr.readline()
       if out_line == '' and process.poll() != None:
         if error_count == -1:
-          print("Failed to process %s" % command.pop())
+          print(f"Failed to process {command.pop()}")
           return 1
         break
-      m = LINT_OUTPUT_PATTERN.match(out_line)
-      if m:
+      if m := LINT_OUTPUT_PATTERN.match(out_line):
         out_lines += out_line
         error_count += 1
     sys.stdout.write(out_lines)
@@ -166,7 +165,7 @@ class FileContentsCache(object):
       try:
         handle = open(file, "r")
         file_sum = md5er(handle.read()).digest()
-        if not file in self.sums or self.sums[file] != file_sum:
+        if file not in self.sums or self.sums[file] != file_sum:
           changed_or_new.append(file)
           self.sums[file] = file_sum
       finally:
@@ -226,9 +225,9 @@ class SourceFileProcessor(object):
     for (root, dirs, files) in os.walk(path):
       for ignored in [x for x in dirs if self.IgnoreDir(x)]:
         dirs.remove(ignored)
-      for file in files:
-        if not self.IgnoreFile(file) and self.IsRelevant(file):
-          result.append(join(root, file))
+      result.extend(
+          join(root, file) for file in files
+          if not self.IgnoreFile(file) and self.IsRelevant(file))
     return result
 
 
@@ -271,7 +270,7 @@ class CacheableSourceFileProcessor(SourceFileProcessor):
       files = cache.FilterUnchangedFiles(files)
 
     if len(files) == 0:
-      print('No changes in %s files detected. Skipping check' % self.file_type)
+      print(f'No changes in {self.file_type} files detected. Skipping check')
       return True
 
     files_requiring_changes = self.DetectFilesToChange(files)
@@ -301,12 +300,7 @@ class CacheableSourceFileProcessor(SourceFileProcessor):
       pool.join()
       sys.exit(1)
 
-    unformatted_files = []
-    for index, errors in enumerate(results):
-      if errors > 0:
-        unformatted_files.append(files[index])
-
-    return unformatted_files
+    return [files[index] for index, errors in enumerate(results) if errors > 0]
 
 
 class CppLintProcessor(CacheableSourceFileProcessor):
@@ -340,7 +334,7 @@ class CppLintProcessor(CacheableSourceFileProcessor):
     return CppLintWorker
 
   def GetProcessorScript(self):
-    filters = ','.join([n for n in LINT_RULES])
+    filters = ','.join(list(LINT_RULES))
     arguments = ['--filter', filters]
     for path in [TOOLS_PATH] + os.environ["PATH"].split(os.pathsep):
       path = path.strip('"')
@@ -399,10 +393,9 @@ class SourceProcessor(SourceFileProcessor):
     pattern = re.compile(r'\s+F\(([^,]*),.*\)')
     runtime_functions = []
     with open(runtime_h_path) as f:
-      for line in f.readlines():
-        m = pattern.match(line)
-        if m:
-          runtime_functions.append(m.group(1))
+      for line in f:
+        if m := pattern.match(line):
+          runtime_functions.append(m[1])
     if len(runtime_functions) < 250:
       print ("Runtime functions list is suspiciously short. "
              "Consider updating the presubmit script.")
@@ -412,7 +405,7 @@ class SourceProcessor(SourceFileProcessor):
 
   # Overwriting the one in the parent class.
   def FindFilesIn(self, path):
-    if os.path.exists(path+'/.git'):
+    if os.path.exists(f'{path}/.git'):
       output = subprocess.Popen('git ls-files --full-name',
                                 stdout=PIPE, cwd=path, shell=True)
       result = []
@@ -429,10 +422,7 @@ class SourceProcessor(SourceFileProcessor):
     return super(SourceProcessor, self).FindFilesIn(path)
 
   def IsRelevant(self, name):
-    for ext in SourceProcessor.RELEVANT_EXTENSIONS:
-      if name.endswith(ext):
-        return True
-    return False
+    return any(name.endswith(ext) for ext in SourceProcessor.RELEVANT_EXTENSIONS)
 
   def GetPathsToSearch(self):
     return ['.']
@@ -481,7 +471,7 @@ class SourceProcessor(SourceFileProcessor):
   ]
 
   def EndOfDeclaration(self, line):
-    return line == "}" or line == "};"
+    return line in ["}", "};"]
 
   def StartOfDeclaration(self, line):
     return line.find("//") == 0 or \
@@ -491,17 +481,17 @@ class SourceProcessor(SourceFileProcessor):
   def ProcessContents(self, name, contents):
     result = True
     base = basename(name)
-    if not base in SourceProcessor.IGNORE_TABS:
+    if base not in SourceProcessor.IGNORE_TABS:
       if '\t' in contents:
-        print("%s contains tabs" % name)
+        print(f"{name} contains tabs")
         result = False
-    if not base in SourceProcessor.IGNORE_COPYRIGHTS and \
-        not any(ignore_dir in name for ignore_dir
-                in SourceProcessor.IGNORE_COPYRIGHTS_DIRECTORIES):
+    if base not in SourceProcessor.IGNORE_COPYRIGHTS and all(
+        ignore_dir not in name
+        for ignore_dir in SourceProcessor.IGNORE_COPYRIGHTS_DIRECTORIES):
       if not COPYRIGHT_HEADER_PATTERN.search(contents):
-        print("%s is missing a correct copyright header." % name)
+        print(f"{name} is missing a correct copyright header.")
         result = False
-    if ' \n' in contents or contents.endswith(' '):
+    if ' \n' in contents or ' \n' not in contents and contents.endswith(' '):
       line = 0
       lines = []
       parts = contents.split(' \n')
@@ -512,35 +502,33 @@ class SourceProcessor(SourceFileProcessor):
         lines.append(str(line))
       linenumbers = ', '.join(lines)
       if len(lines) > 1:
-        print("%s has trailing whitespaces in lines %s." % (name, linenumbers))
+        print(f"{name} has trailing whitespaces in lines {linenumbers}.")
       else:
-        print("%s has trailing whitespaces in line %s." % (name, linenumbers))
+        print(f"{name} has trailing whitespaces in line {linenumbers}.")
       result = False
     if not contents.endswith('\n') or contents.endswith('\n\n'):
-      print("%s does not end with a single new line." % name)
+      print(f"{name} does not end with a single new line.")
       result = False
     # Sanitize flags for fuzzer.
     if (".js" in name or ".mjs" in name) and ("mjsunit" in name or "debugger" in name):
-      match = FLAGS_LINE.search(contents)
-      if match:
-        print("%s Flags should use '-' (not '_')" % name)
+      if match := FLAGS_LINE.search(contents):
+        print(f"{name} Flags should use '-' (not '_')")
         result = False
-      if (not "mjsunit/mjsunit.js" in name and
-          not "mjsunit/mjsunit_numfuzz.js" in name):
+      if ("mjsunit/mjsunit.js" not in name
+          and "mjsunit/mjsunit_numfuzz.js" not in name):
         if ASSERT_OPTIMIZED_PATTERN.search(contents) and \
-            not FLAGS_ENABLE_OPT.search(contents):
-          print("%s Flag --opt should be set if " \
-                "assertOptimized() is used" % name)
+              not FLAGS_ENABLE_OPT.search(contents):
+          print(f"{name} Flag --opt should be set if assertOptimized() is used")
           result = False
         if ASSERT_UNOPTIMIZED_PATTERN.search(contents) and \
-            not FLAGS_NO_ALWAYS_OPT.search(contents):
-          print("%s Flag --no-always-opt should be set if " \
-                "assertUnoptimized() is used" % name)
+              not FLAGS_NO_ALWAYS_OPT.search(contents):
+          print(
+              f"{name} Flag --no-always-opt should be set if assertUnoptimized() is used"
+          )
           result = False
 
-      match = self.runtime_function_call_pattern.search(contents)
-      if match:
-        print("%s has unexpected spaces in a runtime call '%s'" % (name, match.group(1)))
+      if match := self.runtime_function_call_pattern.search(contents):
+        print(f"{name} has unexpected spaces in a runtime call '{match.group(1)}'")
         result = False
     return result
 
@@ -556,14 +544,14 @@ class SourceProcessor(SourceFileProcessor):
           violations += 1
       finally:
         handle.close()
-    print("Total violating files: %s" % violations)
+    print(f"Total violating files: {violations}")
     return success
 
 def _CheckStatusFileForDuplicateKeys(filepath):
   comma_space_bracket = re.compile(", *]")
   lines = []
   with open(filepath) as f:
-    for line in f.readlines():
+    for line in f:
       # Skip all-comment lines.
       if line.lstrip().startswith("#"): continue
       # Strip away comments at the end of the line.
@@ -594,7 +582,7 @@ def _CheckStatusFileForDuplicateKeys(filepath):
     keys = {}
     for key, value in pairs:
       if key in keys:
-        print("%s: Error: duplicate key %s" % (filepath, key))
+        print(f"{filepath}: Error: duplicate key {key}")
         status["success"] = False
       keys[key] = True
 
@@ -629,22 +617,19 @@ class StatusFilesProcessor(SourceFileProcessor):
       if file_path.startswith(testrunner_path):
         for suitepath in os.listdir(test_path):
           suitename = os.path.basename(suitepath)
-          status_file = os.path.join(
-              test_path, suitename, suitename + ".status")
+          status_file = os.path.join(test_path, suitename, f"{suitename}.status")
           if os.path.exists(status_file):
             status_files.add(status_file)
         return status_files
 
     for file_path in files:
       if file_path.startswith(test_path):
-        # Strip off absolute path prefix pointing to test suites.
-        pieces = file_path[len(test_path):].lstrip(os.sep).split(os.sep)
-        if pieces:
+        if pieces := file_path[len(test_path):].lstrip(os.sep).split(os.sep):
           # Infer affected status file name. Only care for existing status
           # files. Some directories under "test" don't have any.
           if not os.path.isdir(join(test_path, pieces[0])):
             continue
-          status_file = join(test_path, pieces[0], pieces[0] + ".status")
+          status_file = join(test_path, pieces[0], f"{pieces[0]}.status")
           if not os.path.exists(status_file):
             continue
           status_files.add(status_file)
@@ -665,7 +650,7 @@ def PyTests(workspace):
       join(workspace, 'tools', 'unittests', 'run_perf_test.py'),
       join(workspace, 'tools', 'testrunner', 'testproc', 'variant_unittest.py'),
     ]:
-    print('Running ' + script)
+    print(f'Running {script}')
     result &= subprocess.call(
         [sys.executable, script], stdout=subprocess.PIPE) == 0
 
@@ -704,10 +689,7 @@ def Main():
   success &= StatusFilesProcessor().RunOnPath(workspace)
   print("Running python tests...")
   success &= PyTests(workspace)
-  if success:
-    return 0
-  else:
-    return 1
+  return 0 if success else 1
 
 
 if __name__ == '__main__':

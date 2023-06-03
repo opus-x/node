@@ -157,10 +157,7 @@ def caret_match(line1, line2):
 
 
 def short_line_output(line):
-  if len(line) <= MAX_LINE_LENGTH:
-    # Avoid copying.
-    return line
-  return line[0:MAX_LINE_LENGTH] + '...'
+  return line if len(line) <= MAX_LINE_LENGTH else f'{line[:MAX_LINE_LENGTH]}...'
 
 
 def ignore_by_regexp(line1, line2, allowed):
@@ -202,13 +199,13 @@ def diff_output(output1, output2, allowed, ignore1, ignore2):
       line_pairs(lines1), line_pairs(lines2), fillvalue=(None, None)):
 
     # Only one of the two iterators should run out.
-    assert not (line1 is None and line2 is None)
+    assert line1 is not None or line2 is not None
 
     # One iterator ends earlier.
     if line1 is None:
-      return '+ %s' % short_line_output(line2), source
+      return f'+ {short_line_output(line2)}', source
     if line2 is None:
-      return '- %s' % short_line_output(line1), source
+      return f'- {short_line_output(line1)}', source
 
     # If lines are equal, no further checks are necessary.
     if line1 == line2:

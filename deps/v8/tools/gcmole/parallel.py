@@ -39,9 +39,9 @@ if __name__ == '__main__':
   assert len(sys.argv) > 2
   processes = multiprocessing.cpu_count()
   pool = multiprocessing.Pool(processes=processes)
-  cmdlines = ["%s %s" % (sys.argv[1], filename) for filename in sys.argv[2:]]
+  cmdlines = [f"{sys.argv[1]} {filename}" for filename in sys.argv[2:]]
   for filename, result in itertools.izip(
       sys.argv[2:], pool.imap(invoke, cmdlines)):
-    print("______________ %s" % filename)
+    print(f"______________ {filename}")
     print(result[0])
     print("______________ finish %d ______________" % result[1])

@@ -56,14 +56,14 @@ def check_keys(error_msg, src_dict, supported_keys):
   errors = []
   for key in src_dict.keys():
     if key not in supported_keys:
-      errors += error_msg('Key "%s" must be one of %s' % (key, supported_keys))
+      errors += error_msg(f'Key "{key}" must be one of {supported_keys}')
   return errors
 
 
 def _check_properties(error_msg, src_dict, prop_name, supported_keys):
   properties = src_dict.get(prop_name, {})
   if not isinstance(properties, dict):
-    return error_msg('Value for %s must be a dict' % prop_name)
+    return error_msg(f'Value for {prop_name} must be a dict')
   return check_keys(error_msg, properties, supported_keys)
 
 
@@ -75,7 +75,7 @@ def _check_int_range(error_msg, src_dict, prop_name, lower_bound=None,
   try:
     value = int(src_dict[prop_name])
   except ValueError:
-    return error_msg('If specified, %s must be an int' % prop_name)
+    return error_msg(f'If specified, {prop_name} must be an int')
   if lower_bound is not None and value < lower_bound:
     return error_msg('If specified, %s must be >=%d' % (prop_name, lower_bound))
   if upper_bound is not None and value > upper_bound:

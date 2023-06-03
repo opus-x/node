@@ -73,12 +73,10 @@ class Config(object):
     else:
       flags_rng = random.Random()
 
-    # Add additional flags to second config based on experiment percentages.
-    extra_flags = []
-    for p, flag in ADDITIONAL_FLAGS:
-      if flags_rng.random() < p:
-        extra_flags.append('--second-config-extra-flags=%s' % flag)
-
+    extra_flags = [
+        f'--second-config-extra-flags={flag}' for p, flag in ADDITIONAL_FLAGS
+        if flags_rng.random() < p
+    ]
     # Calculate flags determining the experiment.
     acc = 0
     threshold = self.rng.random() * 100
@@ -86,8 +84,8 @@ class Config(object):
       acc += prob
       if acc > threshold:
         return [
-          '--first-config=' + first_config,
-          '--second-config=' + second_config,
-          '--second-d8=' + second_d8,
+            f'--first-config={first_config}',
+            f'--second-config={second_config}',
+            f'--second-d8={second_d8}',
         ] + extra_flags
     assert False

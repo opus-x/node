@@ -45,9 +45,7 @@ class Error(Exception):
 
 
 def ToCArray(byte_sequence):
-  result = []
-  for chr in byte_sequence:
-    result.append(str(ord(chr)))
+  result = [str(ord(chr)) for chr in byte_sequence]
   joined = ", ".join(result)
   return textwrap.fill(joined, 80)
 
@@ -83,9 +81,8 @@ def Validate(lines):
     raise Error("Eval disallowed in natives.")
   if WITH_PATTERN.search(lines):
     raise Error("With statements disallowed in natives.")
-  invalid_error = INVALID_ERROR_MESSAGE_PATTERN.search(lines)
-  if invalid_error:
-    raise Error("Unknown error message template '%s'" % invalid_error.group(1))
+  if invalid_error := INVALID_ERROR_MESSAGE_PATTERN.search(lines):
+    raise Error(f"Unknown error message template '{invalid_error.group(1)}'")
   if NEW_ERROR_PATTERN.search(lines):
     raise Error("Error constructed without message template.")
   # Pass lines through unchanged.
@@ -248,7 +245,7 @@ def BuildMetadata(sources, source_bytes, native_type):
   get_script_source_cases = []
   offset = 0
   for i in range(len(sources.modules)):
-    native_name = "native %s.js" % sources.names[i]
+    native_name = f"native {sources.names[i]}.js"
     d = {
         "i": i,
         "id": sources.names[i],
@@ -263,18 +260,23 @@ def BuildMetadata(sources, source_bytes, native_type):
     offset += len(sources.modules[i])
   assert offset == len(raw_sources)
 
-  metadata = {
-    "builtin_count": len(sources.modules),
-    "sources_declaration":
-        SOURCES_DECLARATION % ToCArray(
-          source_bytes if len(source_bytes) != 0 else "\0"),
-    "total_length": total_length,
-    "get_index_cases": "".join(get_index_cases),
-    "get_script_source_cases": "".join(get_script_source_cases),
-    "get_script_name_cases": "".join(get_script_name_cases),
-    "type": native_type,
+  return {
+      "builtin_count":
+      len(sources.modules),
+      "sources_declaration":
+      SOURCES_DECLARATION %
+      ToCArray(source_bytes if len(source_bytes) != 0 else "\0"),
+      "total_length":
+      total_length,
+      "get_index_cases":
+      "".join(get_index_cases),
+      "get_script_source_cases":
+      "".join(get_script_source_cases),
+      "get_script_name_cases":
+      "".join(get_script_name_cases),
+      "type":
+      native_type,
   }
-  return metadata
 
 
 def PutInt(blob_file, value):
@@ -290,7 +292,7 @@ def PutInt(blob_file, value):
   value_with_length = (value << 2) | (size - 1)
 
   byte_sequence = bytearray()
-  for i in range(size):
+  for _ in range(size):
     byte_sequence.append(value_with_length & 255)
     value_with_length >>= 8;
   blob_file.write(byte_sequence)
@@ -309,14 +311,11 @@ def WriteStartupBlob(sources, startup_blob):
     sources: A Sources instance with the prepared sources.
     startup_blob_file: Name of file to write the blob to.
   """
-  output = open(startup_blob, "wb")
-
-  PutInt(output, len(sources.names))
-  for i in range(len(sources.names)):
-    PutStr(output, sources.names[i]);
-    PutStr(output, sources.modules[i]);
-
-  output.close()
+  with open(startup_blob, "wb") as output:
+    PutInt(output, len(sources.names))
+    for i in range(len(sources.names)):
+      PutStr(output, sources.names[i]);
+      PutStr(output, sources.modules[i]);
 
 
 def JS2C(sources, target, native_type, raw_file, startup_blob, emit_js):
@@ -326,20 +325,16 @@ def JS2C(sources, target, native_type, raw_file, startup_blob, emit_js):
 
   # Optionally emit raw file.
   if raw_file:
-    output = open(raw_file, "w")
-    output.write(sources_output)
-    output.close()
-
+    with open(raw_file, "w") as output:
+      output.write(sources_output)
   if startup_blob:
     WriteStartupBlob(prepared_sources, startup_blob)
 
-  # Emit resulting source file.
-  output = open(target, "w")
-  if emit_js:
-    output.write(sources_output)
-  else:
-    output.write(HEADER_TEMPLATE % metadata)
-  output.close()
+  with open(target, "w") as output:
+    if emit_js:
+      output.write(sources_output)
+    else:
+      output.write(HEADER_TEMPLATE % metadata)
 
 
 def main():

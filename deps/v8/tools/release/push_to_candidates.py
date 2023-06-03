@@ -47,9 +47,11 @@ class Preparation(Step):
     self.InitialEnvironmentChecks(self.default_cwd)
     self.CommonPrepare()
 
-    if(self["current_branch"] == self.Config("CANDIDATESBRANCH")
-       or self["current_branch"] == self.Config("BRANCHNAME")):
-      print("Warning: Script started on branch %s" % self["current_branch"])
+    if self["current_branch"] in [
+        self.Config("CANDIDATESBRANCH"),
+        self.Config("BRANCHNAME"),
+    ]:
+      print(f'Warning: Script started on branch {self["current_branch"]}')
 
     self.PrepareBranch()
     self.DeleteBranch(self.Config("CANDIDATESBRANCH"))
@@ -102,11 +104,10 @@ class IncrementVersion(Step):
     # Make sure patch level is 0 in a new push.
     self["new_patch"] = "0"
 
-    self["version"] = "%s.%s.%s" % (self["new_major"],
-                                    self["new_minor"],
-                                    self["new_build"])
+    self[
+        "version"] = f'{self["new_major"]}.{self["new_minor"]}.{self["new_build"]}'
 
-    print ("Incremented version to %s" % self["version"])
+    print(f'Incremented version to {self["version"]}')
 
 
 class DetectLastRelease(Step):
@@ -126,9 +127,8 @@ class PrepareChangeLog(Step):
     self["date"] = self.GetDate()
     output = "%s: Version %s\n\n" % (self["date"], self["version"])
     TextToFile(output, self.Config("CHANGELOG_ENTRY_FILE"))
-    commits = self.GitLog(format="%H",
-        git_hash="%s..%s" % (self["last_push_master"],
-                             self["push_hash"]))
+    commits = self.GitLog(
+        format="%H", git_hash=f'{self["last_push_master"]}..{self["push_hash"]}')
 
     # Cache raw commit messages.
     commit_messages = [
@@ -170,7 +170,7 @@ class EditChangeLog(Step):
     changelog_entry = "\n".join(map(Fill80, changelog_entry.splitlines()))
     changelog_entry = changelog_entry.lstrip()
 
-    if changelog_entry == "":  # pragma: no cover
+    if not changelog_entry:  # pragma: no cover
       self.Die("Empty ChangeLog entry.")
 
     # Safe new change log for adding it later to the candidates patch.
@@ -200,7 +200,7 @@ class SquashCommits(Step):
     text = FileToText(self.Config("CHANGELOG_ENTRY_FILE"))
 
     # Remove date and trailing white space.
-    text = re.sub(r"^%s: " % self["date"], "", text.rstrip())
+    text = re.sub(f'^{self["date"]}: ', "", text.rstrip())
 
     # Show the used master hash in the commit message.
     suffix = PUSH_MSG_GIT_SUFFIX % self["push_hash"]
@@ -210,6 +210,7 @@ class SquashCommits(Step):
     # empty lines between them.
     def SplitMapJoin(split_text, fun, join_text):
       return lambda text: join_text.join(map(fun, text.split(split_text)))
+
     strip = lambda line: line.strip()
     text = SplitMapJoin("\n\n", SplitMapJoin("\n", strip, " "), "\n\n")(text)
 

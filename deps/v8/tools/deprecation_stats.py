@@ -20,7 +20,7 @@ def GetBlame(file_path):
   result = subprocess.check_output(
       ['git', 'blame', '-t', '--line-porcelain', file_path])
   line_iter = iter(result.splitlines())
-  blame_list = list()
+  blame_list = []
   current_blame = None
   while True:
     line = next(line_iter, None)
@@ -31,12 +31,10 @@ def GetBlame(file_path):
         blame_list.append(current_blame)
       current_blame = {'time': 0, 'filename': None, 'content': None}
       continue
-    match = RE_AUTHOR_TIME.match(line)
-    if match:
+    if match := RE_AUTHOR_TIME.match(line):
       current_blame['time'] = datetime.fromtimestamp(int(match.groups()[0]))
       continue
-    match = RE_FILENAME.match(line)
-    if match:
+    if match := RE_FILENAME.match(line):
       current_blame['filename'] = match.groups()[0]
       current_blame['content'] = next(line_iter).strip()
       continue
@@ -49,7 +47,7 @@ RE_DEPRECATE_MACRO = re.compile(r"\(.*?,(.*)\);", re.MULTILINE)
 def FilterAndPrint(blame_list, macro, before):
   index = 0
   re_macro = re.compile(macro)
-  deprecated = list()
+  deprecated = []
   while index < len(blame_list):
     blame = blame_list[index]
     match = re_macro.search(blame['content'])
@@ -67,7 +65,7 @@ def FilterAndPrint(blame_list, macro, before):
           blame = blame_list[index]
           if line.endswith(','):
             # add whitespace when breaking line due to comma
-            line = line + ' '
+            line = f'{line} '
           line = line + blame['content']
         if line[pos] == '(':
           parens = parens + 1
@@ -82,9 +80,9 @@ def FilterAndPrint(blame_list, macro, before):
         pos = pos + 1
       deprecated.append([index + 1, time, line[start:pos].strip()])
     index = index + 1
-  print("Marked as " + macro + ": " + str(len(deprecated)))
+  print(f"Marked as {macro}: {len(deprecated)}")
   for linenumber, time, content in deprecated:
-    print(str(linenumber).rjust(8) + " : " + str(time) + " : " + content)
+    print(f"{str(linenumber).rjust(8)} : {str(time)} : {content}")
   return len(deprecated)
 
 def ParseOptions(args):

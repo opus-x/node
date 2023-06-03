@@ -61,7 +61,7 @@ def main(argv):
   args = parser.parse_args()
 
   if not os.path.isdir(args.dir):
-    parser.error('%s is not an existing directory.' % args.dir)
+    parser.error(f'{args.dir} is not an existing directory.')
 
   args.dir = os.path.abspath(args.dir)
 
@@ -72,11 +72,7 @@ def main(argv):
     library_files = LIBRARY_FILES[args.platform]
 
   # Skip executables for lib archive type.
-  if args.type == 'lib':
-    executable_files = []
-  else:
-    executable_files = EXECUTABLE_FILES
-
+  executable_files = [] if args.type == 'lib' else EXECUTABLE_FILES
   if args.type == 'ref':
     executable_files.extend(REFBUILD_EXECUTABLE_FILES)
 
@@ -86,8 +82,8 @@ def main(argv):
 
   # Add toplevel executables, supplementary files and libraries.
   extended_executable_files = [
-    f + '.exe' if args.platform == 'win' else f
-    for f in executable_files]
+      f'{f}.exe' if args.platform == 'win' else f for f in executable_files
+  ]
   add_files_from_globs(
       os.path.join(args.dir, f)
       for f in extended_executable_files +

@@ -105,7 +105,7 @@ def decode_v8_value(v, bitness):
     else:
       return base_str + (" SMI(%d)" % smi_to_int_64(v))
   elif has_failure_tag(v):
-    return base_str + " (failure)"
+    return f"{base_str} (failure)"
   elif has_heap_object_tag(v):
     return base_str + (" H(0x%x)" % raw_heap_object(v))
   else:
@@ -131,10 +131,10 @@ class V8ValuePrinter(object):
 
 def v8_pretty_printers(val):
   lookup_tag = val.type.tag
-  if lookup_tag == None:
-    return None
-  elif lookup_tag == 'v8value':
+  if lookup_tag == 'v8value':
     return V8ValuePrinter(val)
+  elif lookup_tag is None:
+    return None
   return None
 gdb.pretty_printers.append(v8_pretty_printers)
 
@@ -169,11 +169,10 @@ class FindAnywhere (gdb.Command):
   LIVE_MAPPING_RE = re.compile(r"^\s+0x([0-9A-Fa-f]+)\s+0x([0-9A-Fa-f]+)")
   def __init__ (self):
     super (FindAnywhere, self).__init__ ("find-anywhere", gdb.COMMAND_DATA)
-  def find (self, startAddr, endAddr, value):
+  def find(self, startAddr, endAddr, value):
     try:
-      result = gdb.execute(
-          "find 0x%s, 0x%s, %s" % (startAddr, endAddr, value),
-          to_string = True)
+      result = gdb.execute(f"find 0x{startAddr}, 0x{endAddr}, {value}",
+                           to_string=True)
       if result.find("not found") == -1:
         print(result)
     except:
@@ -212,11 +211,11 @@ GDB_EXTERNAL_EDITOR environment variable.
     old_stdout = gdb.execute("p dup(1)", to_string=True).split("=")[-1].strip()
     try:
       time_suffix = time.strftime("%Y%m%d-%H%M%S")
-      fd, file = tempfile.mkstemp(suffix="-%s.gdbout" % time_suffix)
+      fd, file = tempfile.mkstemp(suffix=f"-{time_suffix}.gdbout")
       try:
         # Temporaily redirect stdout to the created tmp file for the
         # duration of the subcommand.
-        gdb.execute('p dup2(open("%s", 1), 1)' % file, to_string=True)
+        gdb.execute(f'p dup2(open("{file}", 1), 1)', to_string=True)
         # Execute subcommand non interactively.
         result = gdb.execute(subcommand, from_tty=False, to_string=True)
         # Write returned string results to the temporary file as well.
@@ -225,17 +224,17 @@ GDB_EXTERNAL_EDITOR environment variable.
         # Open generated result.
         if 'GDB_EXTERNAL_EDITOR' in os.environ:
           open_cmd = os.environ['GDB_EXTERNAL_EDITOR']
-          print("Opening '%s' with %s" % (file, open_cmd))
+          print(f"Opening '{file}' with {open_cmd}")
           subprocess.call([open_cmd, file])
         else:
           print("Open output:\n  %s '%s'" % (os.environ['EDITOR'], file))
       finally:
         # Restore original stdout.
-        gdb.execute("p dup2(%s, 1)" % old_stdout, to_string=True)
+        gdb.execute(f"p dup2({old_stdout}, 1)", to_string=True)
         # Close the temporary file.
         os.close(fd)
     finally:
       # Close the originally duplicated stdout descriptor.
-      gdb.execute("p close(%s)" % old_stdout, to_string=True)
+      gdb.execute(f"p close({old_stdout})", to_string=True)
 
 Redirect()

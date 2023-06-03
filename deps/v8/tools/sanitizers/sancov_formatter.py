@@ -346,8 +346,7 @@ def merge(options):
   # Coverage dir, absoluate path to executable, sancov file name.
   inputs = []
   for sancov_file in os.listdir(options.coverage_dir):
-    match = SANCOV_FILE_RE.match(sancov_file)
-    if match:
+    if match := SANCOV_FILE_RE.match(sancov_file):
       inputs.append((
           options.coverage_dir,
           os.path.join(options.build_dir, match.group(1)),
@@ -391,7 +390,7 @@ def split(options):
 
   for file_name, coverage in data['files'].iteritems():
     # Preserve relative directories that are part of the file name.
-    file_path = os.path.join(options.output_dir, file_name + '.json')
+    file_path = os.path.join(options.output_dir, f'{file_name}.json')
     try:
       os.makedirs(os.path.dirname(file_path))
     except OSError:
