@@ -97,9 +97,7 @@ def DetectGoma():
     return home_goma
   if os.environ.get("GOMA_DIR"):
     return os.environ.get("GOMA_DIR")
-  if os.environ.get("GOMADIR"):
-    return os.environ.get("GOMADIR")
-  return None
+  return os.environ.get("GOMADIR") if os.environ.get("GOMADIR") else None
 
 GOMADIR = DetectGoma()
 IS_GOMA_MACHINE = GOMADIR is not None
@@ -156,14 +154,15 @@ def PrintHelpAndExit():
   sys.exit(0)
 
 def _Call(cmd, silent=False):
-  if not silent: print("# %s" % cmd)
+  if not silent:
+    print(f"# {cmd}")
   return subprocess.call(cmd, shell=True)
 
 def _CallWithOutputNoTerminal(cmd):
   return subprocess.check_output(cmd, stderr=subprocess.STDOUT, shell=True)
 
 def _CallWithOutput(cmd):
-  print("# %s" % cmd)
+  print(f"# {cmd}")
   # The following trickery is required so that the 'cmd' thinks it's running
   # in a real terminal, while this script gets to intercept its output.
   master, slave = pty.openpty()
@@ -189,10 +188,11 @@ def _CallWithOutput(cmd):
   return p.returncode, "".join(output)
 
 def _Which(cmd):
-  for path in os.environ["PATH"].split(os.pathsep):
-    if os.path.exists(os.path.join(path, cmd)):
-      return os.path.join(path, cmd)
-  return None
+  return next(
+      (os.path.join(path, cmd) for path in os.environ["PATH"].split(os.pathsep)
+       if os.path.exists(os.path.join(path, cmd))),
+      None,
+  )
 
 def _Write(filename, content):
   print("# echo > %s << EOF\n%sEOF" % (filename, content))
@@ -201,22 +201,22 @@ def _Write(filename, content):
 
 def _Notify(summary, body):
   if _Which('notify-send') is not None:
-    _Call("notify-send '{}' '{}'".format(summary, body), silent=True)
+    _Call(f"notify-send '{summary}' '{body}'", silent=True)
   else:
-    print("{} - {}".format(summary, body))
+    print(f"{summary} - {body}")
 
 def GetPath(arch, mode):
-  subdir = "%s.%s" % (arch, mode)
+  subdir = f"{arch}.{mode}"
   return os.path.join(OUTDIR, subdir)
 
 def PrepareMksnapshotCmdline(orig_cmdline, path):
-  result = "gdb --args %s/mksnapshot " % path
+  result = f"gdb --args {path}/mksnapshot "
   for w in orig_cmdline.split(" "):
     if w.startswith("gen/") or w.startswith("snapshot_blob"):
       result += ("%(path)s%(sep)s%(arg)s " %
                  {"path": path, "sep": os.sep, "arg": w})
     else:
-      result += "%s " % w
+      result += f"{w} "
   return result
 
 class Config(object):
@@ -233,9 +233,7 @@ class Config(object):
   def GetTargetCpu(self):
     if self.arch == "android_arm": return "target_cpu = \"arm\""
     if self.arch == "android_arm64": return "target_cpu = \"arm64\""
-    cpu = "x86"
-    if "64" in self.arch or self.arch == "s390x":
-      cpu = "x64"
+    cpu = "x64" if "64" in self.arch or self.arch == "s390x" else "x86"
     return "target_cpu = \"%s\"" % cpu
 
   def GetV8TargetCpu(self):
@@ -253,7 +251,7 @@ class Config(object):
 
   def GetGnArgs(self):
     # Use only substring before first '-' as the actual mode
-    mode = re.match("([^-]+)", self.mode).group(1)
+    mode = re.match("([^-]+)", self.mode)[1]
     template = ARGS_TEMPLATES[mode]
     arch_specific = (self.GetTargetCpu() + self.GetV8TargetCpu() +
                      self.GetTargetOS())
@@ -264,27 +262,26 @@ class Config(object):
     args_gn = os.path.join(path, "args.gn")
     build_ninja = os.path.join(path, "build.ninja")
     if not os.path.exists(path):
-      print("# mkdir -p %s" % path)
+      print(f"# mkdir -p {path}")
       os.makedirs(path)
     if not os.path.exists(args_gn):
       _Write(args_gn, self.GetGnArgs())
     if not os.path.exists(build_ninja):
-      code = _Call("gn gen %s" % path)
+      code = _Call(f"gn gen {path}")
       if code != 0: return code
     targets = " ".join(self.targets)
     # The implementation of mksnapshot failure detection relies on
     # the "pty" module and GDB presence, so skip it on non-Linux.
     if not USE_PTY:
-      return _Call("autoninja -C %s %s" % (path, targets))
+      return _Call(f"autoninja -C {path} {targets}")
 
-    return_code, output = _CallWithOutput("autoninja -C %s %s" %
-                                          (path, targets))
+    return_code, output = _CallWithOutput(f"autoninja -C {path} {targets}")
     if return_code != 0 and "FAILED:" in output and "snapshot_blob" in output:
       csa_trap = re.compile("Specify option( --csa-trap-on-node=[^ ]*)")
       match = csa_trap.search(output)
-      extra_opt = match.group(1) if match else ""
+      extra_opt = match[1] if match else ""
       cmdline = re.compile("python ../../tools/run.py ./mksnapshot (.*)")
-      orig_cmdline = cmdline.search(output).group(1).strip()
+      orig_cmdline = cmdline.search(output)[1].strip()
       cmdline = PrepareMksnapshotCmdline(orig_cmdline, path) + extra_opt
       _Notify("V8 build requires your attention",
               "Detected mksnapshot failure, re-running in GDB...")
@@ -293,18 +290,17 @@ class Config(object):
 
   def RunTests(self):
     if not self.tests: return 0
-    if "ALL" in self.tests:
-      tests = ""
-    else:
-      tests = " ".join(self.tests)
-    return _Call('"%s" ' % sys.executable +
-                 os.path.join("tools", "run-tests.py") +
-                 " --outdir=%s %s" % (GetPath(self.arch, self.mode), tests))
+    tests = "" if "ALL" in self.tests else " ".join(self.tests)
+    return _Call(
+        ((f'"{sys.executable}" ' + os.path.join("tools", "run-tests.py")) +
+         f" --outdir={GetPath(self.arch, self.mode)} {tests}"))
 
 def GetTestBinary(argstring):
-  for suite in TESTSUITES_TARGETS:
-    if argstring.startswith(suite): return TESTSUITES_TARGETS[suite]
-  return None
+  return next(
+      (TESTSUITES_TARGETS[suite]
+       for suite in TESTSUITES_TARGETS if argstring.startswith(suite)),
+      None,
+  )
 
 class ArgumentParser(object):
   def __init__(self):
@@ -367,10 +363,10 @@ class ArgumentParser(object):
         targets.append(word)
       elif word in ACTIONS:
         actions.append(word)
-      elif any(map(lambda x: word.startswith(x + "-"), MODES)):
+      elif any(map(lambda x: word.startswith(f"{x}-"), MODES)):
         modes.append(word)
       else:
-        print("Didn't understand: %s" % word)
+        print(f"Didn't understand: {word}")
         sys.exit(1)
     # Process actions.
     for action in actions:
@@ -397,13 +393,11 @@ class ArgumentParser(object):
 def Main(argv):
   parser = ArgumentParser()
   configs = parser.ParseArguments(argv[1:])
-  return_code = 0
   # If we have Goma but it is not running, start it.
   if (GOMADIR is not None and
       _Call("ps -e | grep compiler_proxy > /dev/null", silent=True) != 0):
-    _Call("%s/goma_ctl.py ensure_start" % GOMADIR)
-  for c in configs:
-    return_code += configs[c].Build()
+    _Call(f"{GOMADIR}/goma_ctl.py ensure_start")
+  return_code = sum(configs[c].Build() for c in configs)
   if return_code == 0:
     for c in configs:
       return_code += configs[c].RunTests()

@@ -281,23 +281,22 @@ class SimpleMock(object):
     try:
       expected_call = self._recipe[self._index]
     except IndexError:
-      raise NoRetryException("Calling %s %s" % (name, " ".join(args)))
+      raise NoRetryException(f'Calling {name} {" ".join(args)}')
 
     if not isinstance(expected_call, dict):
-      raise NoRetryException("Found wrong expectation type for %s %s" %
-                             (name, " ".join(args)))
+      raise NoRetryException(
+          f'Found wrong expectation type for {name} {" ".join(args)}')
 
     if expected_call["name"] != name:
-      raise NoRetryException("Expected action: %s %s - Actual: %s" %
-          (expected_call["name"], expected_call["args"], name))
+      raise NoRetryException(
+          f'Expected action: {expected_call["name"]} {expected_call["args"]} - Actual: {name}'
+      )
 
     # Check if the given working directory matches the expected one.
     if expected_call["cwd"] != kwargs.get("cwd"):
-      raise NoRetryException("Expected cwd: %s in %s %s - Actual: %s" %
-          (expected_call["cwd"],
-           expected_call["name"],
-           expected_call["args"],
-           kwargs.get("cwd")))
+      raise NoRetryException(
+          f'Expected cwd: {expected_call["cwd"]} in {expected_call["name"]} {expected_call["args"]} - Actual: {kwargs.get("cwd")}'
+      )
 
     # The number of arguments in the expectation must match the actual
     # arguments.
@@ -309,8 +308,7 @@ class SimpleMock(object):
     # Compare expected and actual arguments.
     for (expected_arg, actual_arg) in zip(expected_call['args'], args):
       if expected_arg != actual_arg:
-        raise NoRetryException("Expected: %s - Actual: %s" %
-                               (expected_arg, actual_arg))
+        raise NoRetryException(f"Expected: {expected_arg} - Actual: {actual_arg}")
 
     # The expected call contains an optional callback for checking the context
     # at the time of the call.
@@ -319,7 +317,7 @@ class SimpleMock(object):
         expected_call['cb']()
       except:
         tb = traceback.format_exc()
-        raise NoRetryException("Caught exception from callback: %s" % tb)
+        raise NoRetryException(f"Caught exception from callback: {tb}")
 
     # If the return value is an exception, raise it instead of returning.
     if isinstance(expected_call['ret'], Exception):
@@ -386,12 +384,12 @@ class ScriptTest(unittest.TestCase):
     return script(TEST_CONFIG, self, self._state).RunSteps([step_class], args)
 
   def Call(self, fun, *args, **kwargs):
-    print("Calling %s with %s and %s" % (str(fun), str(args), str(kwargs)))
+    print(f"Calling {str(fun)} with {args} and {kwargs}")
 
   def Command(self, cmd, args="", prefix="", pipe=True, cwd=None):
-    print("%s %s" % (cmd, args))
-    print("in %s" % cwd)
-    return self._mock.Call("command", cmd + " " + args, cwd=cwd)
+    print(f"{cmd} {args}")
+    print(f"in {cwd}")
+    return self._mock.Call("command", f"{cmd} {args}", cwd=cwd)
 
   def ReadLine(self):
     return self._mock.Call("readline")
@@ -442,12 +440,12 @@ class ScriptTest(unittest.TestCase):
 
   def testCommonPrepareDefault(self):
     self.Expect([
-      Cmd("git status -s -uno", ""),
-      Cmd("git checkout -f origin/master", ""),
-      Cmd("git fetch", ""),
-      Cmd("git branch", "  branch1\n* %s" % TEST_CONFIG["BRANCHNAME"]),
-      RL("Y"),
-      Cmd("git branch -D %s" % TEST_CONFIG["BRANCHNAME"], ""),
+        Cmd("git status -s -uno", ""),
+        Cmd("git checkout -f origin/master", ""),
+        Cmd("git fetch", ""),
+        Cmd("git branch", "  branch1\n* %s" % TEST_CONFIG["BRANCHNAME"]),
+        RL("Y"),
+        Cmd(f'git branch -D {TEST_CONFIG["BRANCHNAME"]}', ""),
     ])
     self.MakeStep().CommonPrepare()
     self.MakeStep().PrepareBranch()
@@ -465,12 +463,12 @@ class ScriptTest(unittest.TestCase):
 
   def testCommonPrepareDeleteBranchFailure(self):
     self.Expect([
-      Cmd("git status -s -uno", ""),
-      Cmd("git checkout -f origin/master", ""),
-      Cmd("git fetch", ""),
-      Cmd("git branch", "  branch1\n* %s" % TEST_CONFIG["BRANCHNAME"]),
-      RL("Y"),
-      Cmd("git branch -D %s" % TEST_CONFIG["BRANCHNAME"], None),
+        Cmd("git status -s -uno", ""),
+        Cmd("git checkout -f origin/master", ""),
+        Cmd("git fetch", ""),
+        Cmd("git branch", "  branch1\n* %s" % TEST_CONFIG["BRANCHNAME"]),
+        RL("Y"),
+        Cmd(f'git branch -D {TEST_CONFIG["BRANCHNAME"]}', None),
     ])
     self.MakeStep().CommonPrepare()
     self.assertRaises(Exception, self.MakeStep().PrepareBranch)
@@ -598,10 +596,7 @@ class ScriptTest(unittest.TestCase):
     TEST_CONFIG["CHANGELOG_ENTRY_FILE"] = self.MakeEmptyTempFile()
     TextToFile("  New  \n\tLines  \n", TEST_CONFIG["CHANGELOG_ENTRY_FILE"])
     os.environ["EDITOR"] = "vi"
-    self.Expect([
-      RL(""),  # Open editor.
-      Cmd("vi %s" % TEST_CONFIG["CHANGELOG_ENTRY_FILE"], ""),
-    ])
+    self.Expect([RL(""), Cmd(f'vi {TEST_CONFIG["CHANGELOG_ENTRY_FILE"]}', "")])
 
     self.RunStep(PushToCandidates, EditChangeLog)
 
@@ -738,24 +733,24 @@ Performance and stability improvements on all platforms."""
       ResetChangeLog()
       self.WriteFakeVersionFile()
 
-    def CheckVersionCommit():
-      commit = FileToText(TEST_CONFIG["COMMITMSG_FILE"])
-      self.assertEquals(commit_msg, commit)
-      version = FileToText(
-          os.path.join(TEST_CONFIG["DEFAULT_CWD"], VERSION_FILE))
-      self.assertTrue(re.search(r"#define V8_MINOR_VERSION\s+22", version))
-      self.assertTrue(re.search(r"#define V8_BUILD_NUMBER\s+5", version))
-      self.assertFalse(re.search(r"#define V8_BUILD_NUMBER\s+6", version))
-      self.assertTrue(re.search(r"#define V8_PATCH_LEVEL\s+0", version))
-      self.assertTrue(
-          re.search(r"#define V8_IS_CANDIDATE_VERSION\s+0", version))
+      def CheckVersionCommit():
+        commit = FileToText(TEST_CONFIG["COMMITMSG_FILE"])
+        self.assertEquals(commit_msg, commit)
+        version = FileToText(
+            os.path.join(TEST_CONFIG["DEFAULT_CWD"], VERSION_FILE))
+        self.assertTrue(re.search(r"#define V8_MINOR_VERSION\s+22", version))
+        self.assertTrue(re.search(r"#define V8_BUILD_NUMBER\s+5", version))
+        self.assertFalse(re.search(r"#define V8_BUILD_NUMBER\s+6", version))
+        self.assertTrue(re.search(r"#define V8_PATCH_LEVEL\s+0", version))
+        self.assertTrue(
+            re.search(r"#define V8_IS_CANDIDATE_VERSION\s+0", version))
 
-      # Check that the change log on the candidates branch got correctly
-      # modified.
-      change_log = FileToText(
-          os.path.join(TEST_CONFIG["DEFAULT_CWD"], CHANGELOG_FILE))
-      self.assertEquals(
-"""1999-07-31: Version 3.22.5
+        # Check that the change log on the candidates branch got correctly
+        # modified.
+        change_log = FileToText(
+            os.path.join(TEST_CONFIG["DEFAULT_CWD"], CHANGELOG_FILE))
+        self.assertEquals(
+    """1999-07-31: Version 3.22.5
 
         Log text 1 (issue 321).
 
@@ -765,71 +760,95 @@ Performance and stability improvements on all platforms."""
 1999-04-05: Version 3.22.4
 
         Performance and stability improvements on all platforms.\n""",
-          change_log)
+            change_log)
 
     force_flag = " -f" if not manual else ""
     expectations = []
     if not force:
       expectations.append(Cmd("which vi", "/usr/bin/vi"))
     expectations += [
-      Cmd("git status -s -uno", ""),
-      Cmd("git checkout -f origin/master", ""),
-      Cmd("git fetch", ""),
-      Cmd("git branch", "  branch1\n* branch2\n"),
-      Cmd("git branch", "  branch1\n* branch2\n"),
-      Cmd(("git new-branch %s --upstream origin/master" %
-           TEST_CONFIG["BRANCHNAME"]), ""),
-      Cmd("git fetch origin +refs/tags/*:refs/tags/*", ""),
-      Cmd("git tag", self.TAGS),
-      Cmd("git checkout -f origin/master -- include/v8-version.h",
-          "", cb=self.WriteFakeVersionFile),
-      Cmd("git log -1 --format=%H 3.22.4", "release_hash\n"),
-      Cmd("git log -1 --format=%s release_hash",
-          "Version 3.22.4 (based on abc3)\n"),
-      Cmd("git log --format=%H abc3..push_hash", "rev1\n"),
-      Cmd("git log -1 --format=%s rev1", "Log text 1.\n"),
-      Cmd("git log -1 --format=%B rev1", "Text\nLOG=YES\nBUG=v8:321\nText\n"),
-      Cmd("git log -1 --format=%an rev1", "author1@chromium.org\n"),
+        Cmd("git status -s -uno", ""),
+        Cmd("git checkout -f origin/master", ""),
+        Cmd("git fetch", ""),
+        Cmd("git branch", "  branch1\n* branch2\n"),
+        Cmd("git branch", "  branch1\n* branch2\n"),
+        Cmd(
+            f'git new-branch {TEST_CONFIG["BRANCHNAME"]} --upstream origin/master',
+            "",
+        ),
+        Cmd("git fetch origin +refs/tags/*:refs/tags/*", ""),
+        Cmd("git tag", self.TAGS),
+        Cmd(
+            "git checkout -f origin/master -- include/v8-version.h",
+            "",
+            cb=self.WriteFakeVersionFile,
+        ),
+        Cmd("git log -1 --format=%H 3.22.4", "release_hash\n"),
+        Cmd(
+            "git log -1 --format=%s release_hash",
+            "Version 3.22.4 (based on abc3)\n",
+        ),
+        Cmd("git log --format=%H abc3..push_hash", "rev1\n"),
+        Cmd("git log -1 --format=%s rev1", "Log text 1.\n"),
+        Cmd("git log -1 --format=%B rev1", "Text\nLOG=YES\nBUG=v8:321\nText\n"),
+        Cmd("git log -1 --format=%an rev1", "author1@chromium.org\n"),
     ]
     if manual:
       expectations.append(RL(""))  # Open editor.
     if not force:
-      expectations.append(
-          Cmd("vi %s" % TEST_CONFIG["CHANGELOG_ENTRY_FILE"], ""))
+      expectations.append(Cmd(f'vi {TEST_CONFIG["CHANGELOG_ENTRY_FILE"]}', ""))
     expectations += [
-      Cmd("git fetch", ""),
-      Cmd("git checkout -f origin/master", ""),
-      Cmd("git diff origin/candidates push_hash", "patch content\n"),
-      Cmd(("git new-branch %s --upstream origin/candidates" %
-           TEST_CONFIG["CANDIDATESBRANCH"]), "", cb=ResetToCandidates),
-      Cmd("git apply --index --reject \"%s\"" % TEST_CONFIG["PATCH_FILE"], ""),
-      Cmd("git checkout -f origin/candidates -- ChangeLog", "",
-          cb=ResetChangeLog),
-      Cmd("git checkout -f origin/candidates -- include/v8-version.h", "",
-          cb=self.WriteFakeVersionFile),
-      Cmd("git commit -am \"%s\"" % commit_msg_squashed, ""),
+        Cmd("git fetch", ""),
+        Cmd("git checkout -f origin/master", ""),
+        Cmd("git diff origin/candidates push_hash", "patch content\n"),
+        Cmd(
+            f'git new-branch {TEST_CONFIG["CANDIDATESBRANCH"]} --upstream origin/candidates',
+            "",
+            cb=ResetToCandidates,
+        ),
+        Cmd("git apply --index --reject \"%s\"" % TEST_CONFIG["PATCH_FILE"], ""),
+        Cmd(
+            "git checkout -f origin/candidates -- ChangeLog",
+            "",
+            cb=ResetChangeLog,
+        ),
+        Cmd(
+            "git checkout -f origin/candidates -- include/v8-version.h",
+            "",
+            cb=self.WriteFakeVersionFile,
+        ),
+        Cmd("git commit -am \"%s\"" % commit_msg_squashed, ""),
     ]
     if manual:
       expectations.append(RL("Y"))  # Sanity check.
     expectations += [
-      Cmd("git cl land -f --bypass-hooks", ""),
-      Cmd("git checkout -f master", ""),
-      Cmd("git fetch", ""),
-      Cmd("git branch -D %s" % TEST_CONFIG["CANDIDATESBRANCH"], ""),
-      Cmd(("git new-branch %s --upstream origin/candidates" %
-           TEST_CONFIG["CANDIDATESBRANCH"]), "", cb=ResetToCandidates),
-      Cmd("git commit -aF \"%s\"" % TEST_CONFIG["COMMITMSG_FILE"], "",
-          cb=CheckVersionCommit),
-      Cmd("git cl land -f --bypass-hooks", ""),
-      Cmd("git fetch", ""),
-      Cmd("git log -1 --format=%H --grep="
-          "\"Version 3.22.5 (based on push_hash)\""
-          " origin/candidates", "hsh_to_tag"),
-      Cmd("git tag 3.22.5 hsh_to_tag", ""),
-      Cmd("git push origin refs/tags/3.22.5:refs/tags/3.22.5", ""),
-      Cmd("git checkout -f origin/master", ""),
-      Cmd("git branch -D %s" % TEST_CONFIG["BRANCHNAME"], ""),
-      Cmd("git branch -D %s" % TEST_CONFIG["CANDIDATESBRANCH"], ""),
+        Cmd("git cl land -f --bypass-hooks", ""),
+        Cmd("git checkout -f master", ""),
+        Cmd("git fetch", ""),
+        Cmd(f'git branch -D {TEST_CONFIG["CANDIDATESBRANCH"]}', ""),
+        Cmd(
+            f'git new-branch {TEST_CONFIG["CANDIDATESBRANCH"]} --upstream origin/candidates',
+            "",
+            cb=ResetToCandidates,
+        ),
+        Cmd(
+            "git commit -aF \"%s\"" % TEST_CONFIG["COMMITMSG_FILE"],
+            "",
+            cb=CheckVersionCommit,
+        ),
+        Cmd("git cl land -f --bypass-hooks", ""),
+        Cmd("git fetch", ""),
+        Cmd(
+            "git log -1 --format=%H --grep="
+            "\"Version 3.22.5 (based on push_hash)\""
+            " origin/candidates",
+            "hsh_to_tag",
+        ),
+        Cmd("git tag 3.22.5 hsh_to_tag", ""),
+        Cmd("git push origin refs/tags/3.22.5:refs/tags/3.22.5", ""),
+        Cmd("git checkout -f origin/master", ""),
+        Cmd(f'git branch -D {TEST_CONFIG["BRANCHNAME"]}', ""),
+        Cmd(f'git branch -D {TEST_CONFIG["CANDIDATESBRANCH"]}', ""),
     ]
     self.Expect(expectations)
 
@@ -1140,8 +1159,8 @@ deps = {
 
     auto_push.AutoPush(TEST_CONFIG, self).Run(AUTO_PUSH_ARGS + ["--push"])
 
-    state = json.loads(FileToText("%s-state.json"
-                                  % TEST_CONFIG["PERSISTFILE_BASENAME"]))
+    state = json.loads(
+        FileToText(f'{TEST_CONFIG["PERSISTFILE_BASENAME"]}-state.json'))
 
     self.assertEquals("abc123", state["candidate"])
 
@@ -1190,83 +1209,110 @@ LOG=N
           re.search(r"#define V8_IS_CANDIDATE_VERSION\s+0", version))
 
     self.Expect([
-      Cmd("git status -s -uno", ""),
-      Cmd("git checkout -f origin/master", ""),
-      Cmd("git fetch", ""),
-      Cmd("git branch", "  branch1\n* branch2\n"),
-      Cmd("git new-branch %s --upstream refs/remotes/origin/candidates" %
-          TEST_CONFIG["BRANCHNAME"], ""),
-      Cmd(("git log --format=%H --grep=\"Port ab12345\" "
-           "--reverse origin/master"),
-          "ab45678\nab23456"),
-      Cmd("git log -1 --format=%s ab45678", "Title1"),
-      Cmd("git log -1 --format=%s ab23456", "Title2"),
-      Cmd(("git log --format=%H --grep=\"Port ab23456\" "
-           "--reverse origin/master"),
-          ""),
-      Cmd(("git log --format=%H --grep=\"Port ab34567\" "
-           "--reverse origin/master"),
-          "ab56789"),
-      Cmd("git log -1 --format=%s ab56789", "Title3"),
-      RL("Y"),  # Automatically add corresponding ports (ab34567, ab56789)?
-      # Simulate git being down which stops the script.
-      Cmd("git log -1 --format=%s ab12345", None),
-      # Restart script in the failing step.
-      Cmd("git log -1 --format=%s ab12345", "Title4"),
-      Cmd("git log -1 --format=%s ab23456", "Title2"),
-      Cmd("git log -1 --format=%s ab34567", "Title3"),
-      Cmd("git log -1 --format=%s ab45678", "Title1"),
-      Cmd("git log -1 --format=%s ab56789", "Revert \"Something\""),
-      Cmd("git log -1 ab12345", "Title4\nBUG=123\nBUG=234"),
-      Cmd("git log -1 ab23456", "Title2\n BUG = v8:123,345"),
-      Cmd("git log -1 ab34567", "Title3\nLOG=n\nBUG=567, 456"),
-      Cmd("git log -1 ab45678", "Title1\nBUG="),
-      Cmd("git log -1 ab56789", "Revert \"Something\"\nBUG=none"),
-      Cmd("git log -1 -p ab12345", "patch4"),
-      Cmd(("git apply --index --reject \"%s\"" %
-           TEST_CONFIG["TEMPORARY_PATCH_FILE"]),
-          "", cb=VerifyPatch("patch4")),
-      Cmd("git log -1 -p ab23456", "patch2"),
-      Cmd(("git apply --index --reject \"%s\"" %
-           TEST_CONFIG["TEMPORARY_PATCH_FILE"]),
-          "", cb=VerifyPatch("patch2")),
-      Cmd("git log -1 -p ab34567", "patch3"),
-      Cmd(("git apply --index --reject \"%s\"" %
-           TEST_CONFIG["TEMPORARY_PATCH_FILE"]),
-          "", cb=VerifyPatch("patch3")),
-      Cmd("git log -1 -p ab45678", "patch1"),
-      Cmd(("git apply --index --reject \"%s\"" %
-           TEST_CONFIG["TEMPORARY_PATCH_FILE"]),
-          "", cb=VerifyPatch("patch1")),
-      Cmd("git log -1 -p ab56789", "patch5\n"),
-      Cmd(("git apply --index --reject \"%s\"" %
-           TEST_CONFIG["TEMPORARY_PATCH_FILE"]),
-          "", cb=VerifyPatch("patch5\n")),
-      Cmd("git apply --index --reject \"%s\"" % extra_patch, ""),
-      RL("Y"),  # Automatically increment patch level?
-      Cmd("git commit -aF \"%s\"" % TEST_CONFIG["COMMITMSG_FILE"], ""),
-      RL("reviewer@chromium.org"),  # V8 reviewer.
-      Cmd("git cl upload --send-mail -r \"reviewer@chromium.org\" "
-          "--bypass-hooks --cc \"ulan@chromium.org\" --gerrit", ""),
-      Cmd("git checkout -f %s" % TEST_CONFIG["BRANCHNAME"], ""),
-      RL("LGTM"),  # Enter LGTM for V8 CL.
-      Cmd("git cl presubmit", "Presubmit successfull\n"),
-      Cmd("git cl land -f --bypass-hooks", "Closing issue\n",
-          cb=VerifyLand),
-      Cmd("git fetch", ""),
-      Cmd("git log -1 --format=%H --grep=\""
-          "Version 3.22.5.1 (cherry-pick)"
-          "\" refs/remotes/origin/candidates",
-          ""),
-      Cmd("git fetch", ""),
-      Cmd("git log -1 --format=%H --grep=\""
-          "Version 3.22.5.1 (cherry-pick)"
-          "\" refs/remotes/origin/candidates",
-          "hsh_to_tag"),
-      Cmd("git tag 3.22.5.1 hsh_to_tag", ""),
-      Cmd("git push origin refs/tags/3.22.5.1:refs/tags/3.22.5.1", ""),
-      Cmd("git checkout -f origin/master", ""),
-      Cmd("git branch -D %s" % TEST_CONFIG["BRANCHNAME"], ""),
+        Cmd("git status -s -uno", ""),
+        Cmd("git checkout -f origin/master", ""),
+        Cmd("git fetch", ""),
+        Cmd("git branch", "  branch1\n* branch2\n"),
+        Cmd(
+            f'git new-branch {TEST_CONFIG["BRANCHNAME"]} --upstream refs/remotes/origin/candidates',
+            "",
+        ),
+        Cmd(
+            ("git log --format=%H --grep=\"Port ab12345\" "
+             "--reverse origin/master"),
+            "ab45678\nab23456",
+        ),
+        Cmd("git log -1 --format=%s ab45678", "Title1"),
+        Cmd("git log -1 --format=%s ab23456", "Title2"),
+        Cmd(
+            ("git log --format=%H --grep=\"Port ab23456\" "
+             "--reverse origin/master"),
+            "",
+        ),
+        Cmd(
+            ("git log --format=%H --grep=\"Port ab34567\" "
+             "--reverse origin/master"),
+            "ab56789",
+        ),
+        Cmd("git log -1 --format=%s ab56789", "Title3"),
+        RL("Y"),
+        Cmd("git log -1 --format=%s ab12345", None),
+        Cmd("git log -1 --format=%s ab12345", "Title4"),
+        Cmd("git log -1 --format=%s ab23456", "Title2"),
+        Cmd("git log -1 --format=%s ab34567", "Title3"),
+        Cmd("git log -1 --format=%s ab45678", "Title1"),
+        Cmd("git log -1 --format=%s ab56789", "Revert \"Something\""),
+        Cmd("git log -1 ab12345", "Title4\nBUG=123\nBUG=234"),
+        Cmd("git log -1 ab23456", "Title2\n BUG = v8:123,345"),
+        Cmd("git log -1 ab34567", "Title3\nLOG=n\nBUG=567, 456"),
+        Cmd("git log -1 ab45678", "Title1\nBUG="),
+        Cmd("git log -1 ab56789", "Revert \"Something\"\nBUG=none"),
+        Cmd("git log -1 -p ab12345", "patch4"),
+        Cmd(
+            ("git apply --index --reject \"%s\"" %
+             TEST_CONFIG["TEMPORARY_PATCH_FILE"]),
+            "",
+            cb=VerifyPatch("patch4"),
+        ),
+        Cmd("git log -1 -p ab23456", "patch2"),
+        Cmd(
+            ("git apply --index --reject \"%s\"" %
+             TEST_CONFIG["TEMPORARY_PATCH_FILE"]),
+            "",
+            cb=VerifyPatch("patch2"),
+        ),
+        Cmd("git log -1 -p ab34567", "patch3"),
+        Cmd(
+            ("git apply --index --reject \"%s\"" %
+             TEST_CONFIG["TEMPORARY_PATCH_FILE"]),
+            "",
+            cb=VerifyPatch("patch3"),
+        ),
+        Cmd("git log -1 -p ab45678", "patch1"),
+        Cmd(
+            ("git apply --index --reject \"%s\"" %
+             TEST_CONFIG["TEMPORARY_PATCH_FILE"]),
+            "",
+            cb=VerifyPatch("patch1"),
+        ),
+        Cmd("git log -1 -p ab56789", "patch5\n"),
+        Cmd(
+            ("git apply --index --reject \"%s\"" %
+             TEST_CONFIG["TEMPORARY_PATCH_FILE"]),
+            "",
+            cb=VerifyPatch("patch5\n"),
+        ),
+        Cmd("git apply --index --reject \"%s\"" % extra_patch, ""),
+        RL("Y"),
+        Cmd("git commit -aF \"%s\"" % TEST_CONFIG["COMMITMSG_FILE"], ""),
+        RL("reviewer@chromium.org"),
+        Cmd(
+            "git cl upload --send-mail -r \"reviewer@chromium.org\" "
+            "--bypass-hooks --cc \"ulan@chromium.org\" --gerrit",
+            "",
+        ),
+        Cmd(f'git checkout -f {TEST_CONFIG["BRANCHNAME"]}', ""),
+        RL("LGTM"),
+        Cmd("git cl presubmit", "Presubmit successfull\n"),
+        Cmd("git cl land -f --bypass-hooks", "Closing issue\n", cb=VerifyLand),
+        Cmd("git fetch", ""),
+        Cmd(
+            "git log -1 --format=%H --grep=\""
+            "Version 3.22.5.1 (cherry-pick)"
+            "\" refs/remotes/origin/candidates",
+            "",
+        ),
+        Cmd("git fetch", ""),
+        Cmd(
+            "git log -1 --format=%H --grep=\""
+            "Version 3.22.5.1 (cherry-pick)"
+            "\" refs/remotes/origin/candidates",
+            "hsh_to_tag",
+        ),
+        Cmd("git tag 3.22.5.1 hsh_to_tag", ""),
+        Cmd("git push origin refs/tags/3.22.5.1:refs/tags/3.22.5.1", ""),
+        Cmd("git checkout -f origin/master", ""),
+        Cmd(f'git branch -D {TEST_CONFIG["BRANCHNAME"]}', ""),
     ])
 
     # ab12345 and ab34567 are patches. ab23456 (included) and ab45678 are the
@@ -1328,70 +1374,93 @@ NOTREECHECKS=true
       self.assertEquals(msg, commit)
 
     self.Expect([
-      Cmd("git status -s -uno", ""),
-      Cmd("git checkout -f origin/master", ""),
-      Cmd("git fetch", ""),
-      Cmd("git branch", "  branch1\n* branch2\n"),
-      Cmd("git new-branch %s --upstream refs/remotes/origin/candidates" %
-          TEST_CONFIG["BRANCHNAME"], ""),
-      Cmd(("git log --format=%H --grep=\"^[Pp]ort ab12345\" "
-           "--reverse origin/master"),
-          "ab45678\nab23456"),
-      Cmd("git log -1 --format=%s ab45678", "Title1"),
-      Cmd("git log -1 --format=%s ab23456", "Title2"),
-      Cmd(("git log --format=%H --grep=\"^[Pp]ort ab23456\" "
-           "--reverse origin/master"),
-          ""),
-      Cmd(("git log --format=%H --grep=\"^[Pp]ort ab34567\" "
-           "--reverse origin/master"),
-          "ab56789"),
-      Cmd("git log -1 --format=%s ab56789", "Title3"),
-      RL("Y"),  # Automatically add corresponding ports (ab34567, ab56789)?
-      # Simulate git being down which stops the script.
-      Cmd("git log -1 --format=%s ab12345", None),
-      # Restart script in the failing step.
-      Cmd("git log -1 --format=%s ab12345", "Title4"),
-      Cmd("git log -1 --format=%s ab23456", "Title2"),
-      Cmd("git log -1 --format=%s ab34567", "Title3"),
-      Cmd("git log -1 --format=%s ab45678", "Title1"),
-      Cmd("git log -1 --format=%s ab56789", "Revert \"Something\""),
-      Cmd("git log -1 ab12345", "Title4\nBUG=123\nBUG=234"),
-      Cmd("git log -1 ab23456", "Title2\n BUG = v8:123,345"),
-      Cmd("git log -1 ab34567", "Title3\nLOG=n\nBug: 567, 456,345"),
-      Cmd("git log -1 ab45678", "Title1\nBug:"),
-      Cmd("git log -1 ab56789", "Revert \"Something\"\nBUG=none"),
-      Cmd("git log -1 -p ab12345", "patch4"),
-      Cmd(("git apply --index --reject \"%s\"" %
-           TEST_CONFIG["TEMPORARY_PATCH_FILE"]),
-          "", cb=VerifyPatch("patch4")),
-      Cmd("git log -1 -p ab23456", "patch2"),
-      Cmd(("git apply --index --reject \"%s\"" %
-           TEST_CONFIG["TEMPORARY_PATCH_FILE"]),
-          "", cb=VerifyPatch("patch2")),
-      Cmd("git log -1 -p ab34567", "patch3"),
-      Cmd(("git apply --index --reject \"%s\"" %
-           TEST_CONFIG["TEMPORARY_PATCH_FILE"]),
-          "", cb=VerifyPatch("patch3")),
-      Cmd("git log -1 -p ab45678", "patch1"),
-      Cmd(("git apply --index --reject \"%s\"" %
-           TEST_CONFIG["TEMPORARY_PATCH_FILE"]),
-          "", cb=VerifyPatch("patch1")),
-      Cmd("git log -1 -p ab56789", "patch5\n"),
-      Cmd(("git apply --index --reject \"%s\"" %
-           TEST_CONFIG["TEMPORARY_PATCH_FILE"]),
-          "", cb=VerifyPatch("patch5\n")),
-      Cmd("git apply --index --reject \"%s\"" % extra_patch, ""),
-      Cmd("git commit -aF \"%s\"" % TEST_CONFIG["COMMITMSG_FILE"], ""),
-      RL("reviewer@chromium.org"),  # V8 reviewer.
-      Cmd("git cl upload --send-mail -r \"reviewer@chromium.org\" "
-          "--bypass-hooks --cc \"ulan@chromium.org\" --gerrit", ""),
-      Cmd("git checkout -f %s" % TEST_CONFIG["BRANCHNAME"], ""),
-      RL("LGTM"),  # Enter LGTM for V8 CL.
-      Cmd("git cl presubmit", "Presubmit successfull\n"),
-      Cmd("git cl land -f --bypass-hooks", "Closing issue\n",
-          cb=VerifyLand),
-      Cmd("git checkout -f origin/master", ""),
-      Cmd("git branch -D %s" % TEST_CONFIG["BRANCHNAME"], ""),
+        Cmd("git status -s -uno", ""),
+        Cmd("git checkout -f origin/master", ""),
+        Cmd("git fetch", ""),
+        Cmd("git branch", "  branch1\n* branch2\n"),
+        Cmd(
+            f'git new-branch {TEST_CONFIG["BRANCHNAME"]} --upstream refs/remotes/origin/candidates',
+            "",
+        ),
+        Cmd(
+            ("git log --format=%H --grep=\"^[Pp]ort ab12345\" "
+             "--reverse origin/master"),
+            "ab45678\nab23456",
+        ),
+        Cmd("git log -1 --format=%s ab45678", "Title1"),
+        Cmd("git log -1 --format=%s ab23456", "Title2"),
+        Cmd(
+            ("git log --format=%H --grep=\"^[Pp]ort ab23456\" "
+             "--reverse origin/master"),
+            "",
+        ),
+        Cmd(
+            ("git log --format=%H --grep=\"^[Pp]ort ab34567\" "
+             "--reverse origin/master"),
+            "ab56789",
+        ),
+        Cmd("git log -1 --format=%s ab56789", "Title3"),
+        RL("Y"),
+        Cmd("git log -1 --format=%s ab12345", None),
+        Cmd("git log -1 --format=%s ab12345", "Title4"),
+        Cmd("git log -1 --format=%s ab23456", "Title2"),
+        Cmd("git log -1 --format=%s ab34567", "Title3"),
+        Cmd("git log -1 --format=%s ab45678", "Title1"),
+        Cmd("git log -1 --format=%s ab56789", "Revert \"Something\""),
+        Cmd("git log -1 ab12345", "Title4\nBUG=123\nBUG=234"),
+        Cmd("git log -1 ab23456", "Title2\n BUG = v8:123,345"),
+        Cmd("git log -1 ab34567", "Title3\nLOG=n\nBug: 567, 456,345"),
+        Cmd("git log -1 ab45678", "Title1\nBug:"),
+        Cmd("git log -1 ab56789", "Revert \"Something\"\nBUG=none"),
+        Cmd("git log -1 -p ab12345", "patch4"),
+        Cmd(
+            ("git apply --index --reject \"%s\"" %
+             TEST_CONFIG["TEMPORARY_PATCH_FILE"]),
+            "",
+            cb=VerifyPatch("patch4"),
+        ),
+        Cmd("git log -1 -p ab23456", "patch2"),
+        Cmd(
+            ("git apply --index --reject \"%s\"" %
+             TEST_CONFIG["TEMPORARY_PATCH_FILE"]),
+            "",
+            cb=VerifyPatch("patch2"),
+        ),
+        Cmd("git log -1 -p ab34567", "patch3"),
+        Cmd(
+            ("git apply --index --reject \"%s\"" %
+             TEST_CONFIG["TEMPORARY_PATCH_FILE"]),
+            "",
+            cb=VerifyPatch("patch3"),
+        ),
+        Cmd("git log -1 -p ab45678", "patch1"),
+        Cmd(
+            ("git apply --index --reject \"%s\"" %
+             TEST_CONFIG["TEMPORARY_PATCH_FILE"]),
+            "",
+            cb=VerifyPatch("patch1"),
+        ),
+        Cmd("git log -1 -p ab56789", "patch5\n"),
+        Cmd(
+            ("git apply --index --reject \"%s\"" %
+             TEST_CONFIG["TEMPORARY_PATCH_FILE"]),
+            "",
+            cb=VerifyPatch("patch5\n"),
+        ),
+        Cmd("git apply --index --reject \"%s\"" % extra_patch, ""),
+        Cmd("git commit -aF \"%s\"" % TEST_CONFIG["COMMITMSG_FILE"], ""),
+        RL("reviewer@chromium.org"),
+        Cmd(
+            "git cl upload --send-mail -r \"reviewer@chromium.org\" "
+            "--bypass-hooks --cc \"ulan@chromium.org\" --gerrit",
+            "",
+        ),
+        Cmd(f'git checkout -f {TEST_CONFIG["BRANCHNAME"]}', ""),
+        RL("LGTM"),
+        Cmd("git cl presubmit", "Presubmit successfull\n"),
+        Cmd("git cl land -f --bypass-hooks", "Closing issue\n", cb=VerifyLand),
+        Cmd("git checkout -f origin/master", ""),
+        Cmd(f'git branch -D {TEST_CONFIG["BRANCHNAME"]}', ""),
     ])
 
     # ab12345 and ab34567 are patches. ab23456 (included) and ab45678 are the

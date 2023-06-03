@@ -13,6 +13,7 @@ BUILD.gn. Just compile to check whether there are any violations to the rule
 that each header must be includable in isolation.
 """
 
+
 # for py2/py3 compatibility
 from __future__ import print_function
 
@@ -33,14 +34,23 @@ AUTO_EXCLUDE = [
   'src/flags/flag-definitions.h',
 ]
 AUTO_EXCLUDE_PATTERNS = [
-  'src/base/atomicops_internals_.*',
-  # TODO(petermarshall): Enable once Perfetto is built by default.
-  'src/libplatform/tracing/perfetto*',
+    'src/base/atomicops_internals_.*',
+    # TODO(petermarshall): Enable once Perfetto is built by default.
+    'src/libplatform/tracing/perfetto*',
 ] + [
-  # platform-specific headers
-  '\\b{}\\b'.format(p) for p in
-    ('win', 'win32', 'ia32', 'x64', 'arm', 'arm64', 'mips', 'mips64', 's390',
-     'ppc')]
+    f'\\b{p}\\b' for p in (
+        'win',
+        'win32',
+        'ia32',
+        'x64',
+        'arm',
+        'arm64',
+        'mips',
+        'mips64',
+        's390',
+        'ppc',
+    )
+]
 
 args = None
 def parse_args():
@@ -56,7 +66,7 @@ def parse_args():
                       help='Be verbose')
   args = parser.parse_args()
   args.exclude = (args.exclude or []) + AUTO_EXCLUDE_PATTERNS
-  args.exclude += ['^' + re.escape(x) + '$' for x in AUTO_EXCLUDE]
+  args.exclude += [f'^{re.escape(x)}$' for x in AUTO_EXCLUDE]
   if not args.input:
     args.input=DEFAULT_INPUT
 
@@ -98,7 +108,7 @@ def get_cc_file_name(header):
   header_dir = os.path.relpath(split[0], V8_DIR)
   # Prefix with the directory name, to avoid collisions in the object files.
   prefix = header_dir.replace(os.path.sep, '-')
-  cc_file_name = 'test-include-' + prefix + '-' + split[1][:-1] + 'cc'
+  cc_file_name = f'test-include-{prefix}-{split[1][:-1]}cc'
   return os.path.join(OUT_DIR, cc_file_name)
 
 
@@ -107,20 +117,20 @@ def create_including_cc_files(header_files):
   for header in header_files:
     cc_file_name = get_cc_file_name(header)
     rel_cc_file_name = os.path.relpath(cc_file_name, V8_DIR)
-    content = '#include "{}"  // {}\n'.format(header, comment)
+    content = f'#include "{header}"  // {comment}\n'
     if os.path.exists(cc_file_name):
       with open(cc_file_name) as cc_file:
         if cc_file.read() == content:
-          printv('File {} is up to date'.format(rel_cc_file_name))
+          printv(f'File {rel_cc_file_name} is up to date')
           continue
-    printv('Creating file {}'.format(rel_cc_file_name))
+    printv(f'Creating file {rel_cc_file_name}')
     with open(cc_file_name, 'w') as cc_file:
       cc_file.write(content)
 
 
 def generate_gni(header_files):
   gni_file = os.path.join(OUT_DIR, 'sources.gni')
-  printv('Generating file "{}"'.format(os.path.relpath(gni_file, V8_DIR)))
+  printv(f'Generating file "{os.path.relpath(gni_file, V8_DIR)}"')
   with open(gni_file, 'w') as gn:
     gn.write("""\
 # Copyright 2018 The Chromium Authors. All rights reserved.
@@ -132,7 +142,7 @@ check_header_includes_sources = [
 """);
     for header in header_files:
       cc_file_name = get_cc_file_name(header)
-      gn.write('    "{}",\n'.format(os.path.relpath(cc_file_name, V8_DIR)))
+      gn.write(f'    "{os.path.relpath(cc_file_name, V8_DIR)}",\n')
     gn.write(']\n')
 
 

@@ -187,9 +187,9 @@ def _CheckUnwantedDependencies(input_api, output_api):
     impacted. Files impacted by DEPS changes take precedence before files
     affected by direct changes."""
     result = impacted_files[:]
-    only_paths = set([imf.LocalPath() for imf in impacted_files])
+    only_paths = {imf.LocalPath() for imf in impacted_files}
     for af in affected_files:
-      if not af.LocalPath() in only_paths:
+      if af.LocalPath() not in only_paths:
         result.append(af)
     return result
 
@@ -247,7 +247,7 @@ def _CheckHeadersHaveIncludeGuards(input_api, output_api):
     """Guards should be of the form V8_PATH_TO_FILE_WITHOUT_SRC_H_."""
     x = input_api.re.sub(leading_src_pattern, 'v8_', path)
     x = input_api.re.sub(dash_dot_slash_pattern, '_', x)
-    x = x.upper() + "_"
+    x = f"{x.upper()}_"
     return x
 
   problems = []
@@ -255,9 +255,10 @@ def _CheckHeadersHaveIncludeGuards(input_api, output_api):
     local_path = f.LocalPath()
     guard_macro = PathToGuardMacro(local_path)
     guard_patterns = [
-            input_api.re.compile(r'^#ifndef ' + guard_macro + '$'),
-            input_api.re.compile(r'^#define ' + guard_macro + '$'),
-            input_api.re.compile(r'^#endif  // ' + guard_macro + '$')]
+        input_api.re.compile(f'^#ifndef {guard_macro}$'),
+        input_api.re.compile(f'^#define {guard_macro}$'),
+        input_api.re.compile(f'^#endif  // {guard_macro}$'),
+    ]
     skip_check_pattern = input_api.re.compile(
             r'^// PRESUBMIT_INTENTIONALLY_MISSING_INCLUDE_GUARD')
     found_patterns = [ False, False, False ]
@@ -313,10 +314,7 @@ def _CheckNoInlineHeaderIncludesInNormalHeaders(input_api, output_api):
         problems.append(
           '%s:%d\n    %s' % (local_path, line_number, line.strip()))
 
-  if problems:
-    return [output_api.PresubmitError(include_error, problems)]
-  else:
-    return []
+  return [output_api.PresubmitError(include_error, problems)] if problems else []
 
 
 def _CheckNoProductionCodeUsingTestOnlyFunctions(input_api, output_api):
@@ -332,7 +330,7 @@ def _CheckNoProductionCodeUsingTestOnlyFunctions(input_api, output_api):
 
   base_function_pattern = r'[ :]test::[^\s]+|ForTest(ing)?|for_test(ing)?'
   inclusion_pattern = input_api.re.compile(r'(%s)\s*\(' % base_function_pattern)
-  comment_pattern = input_api.re.compile(r'//.*(%s)' % base_function_pattern)
+  comment_pattern = input_api.re.compile(f'//.*({base_function_pattern})')
   exclusion_pattern = input_api.re.compile(
     r'::[A-Za-z0-9_]+(%s)|(%s)[^;]+\{' % (
       base_function_pattern, base_function_pattern))
@@ -398,7 +396,7 @@ def _CommonChecks(input_api, output_api):
     _RunTestsWithVPythonSpec,
   ]
 
-  return sum([check(input_api, output_api) for check in checks], [])
+  return sum((check(input_api, output_api) for check in checks), [])
 
 
 def _SkipTreeCheck(input_api, output_api):
@@ -423,13 +421,10 @@ def _CheckCommitMessageBugEntry(input_api, output_api):
       continue
     if ':' not in bug:
       try:
-        if int(bug) > 100000:
-          # Rough indicator for current chromium bugs.
-          prefix_guess = 'chromium'
-        else:
-          prefix_guess = 'v8'
-        results.append('BUG entry requires issue tracker prefix, e.g. %s:%s' %
-                       (prefix_guess, bug))
+        prefix_guess = 'chromium' if int(bug) > 100000 else 'v8'
+        results.append(
+            f'BUG entry requires issue tracker prefix, e.g. {prefix_guess}:{bug}'
+        )
       except ValueError:
         results.append(bogus_bug_msg % bug)
     elif not re.match(r'\w+:\d+', bug):
@@ -485,7 +480,7 @@ def _CheckMacroUndefs(input_api, output_api):
       name = define_match.group(1)
       defined_macros[name] = line_nr
     undef_match = undef_pattern.match(line)
-    if undef_match and not "// NOLINT" in line:
+    if undef_match and "// NOLINT" not in line:
       name = undef_match.group(1)
       if name in defined_macros:
         del defined_macros[name]
@@ -501,7 +496,7 @@ def _CheckMacroUndefs(input_api, output_api):
     if not TouchesMacros(f):
       continue
 
-    defined_macros = dict()
+    defined_macros = {}
     with open(f.LocalPath()) as fh:
       for line_nr, line in enumerate(fh, start=1):
         CollectUndefsWithNoDef(defined_macros, errors, f, line, line_nr)
@@ -549,8 +544,7 @@ def _CheckNoexceptAnnotations(input_api, output_api):
   # matches anything but a sequence of whitespaces followed by either
   # V8_NOEXCEPT or "= delete".
   not_followed_by_noexcept = r'(?!\s+(?:V8_NOEXCEPT|=\s+delete)\b)'
-  full_pattern = r'^.*?' + class_name + potential_assignment + \
-      single_class_ref_arg + not_followed_by_noexcept + '.*?$'
+  full_pattern = f'^.*?{class_name}{potential_assignment}{single_class_ref_arg}{not_followed_by_noexcept}.*?$'
   regexp = input_api.re.compile(full_pattern, re.MULTILINE)
 
   errors = []

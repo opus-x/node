@@ -32,12 +32,13 @@ def PrintHelpAndExit():
 
 
 def _Call(cmd, silent=False):
-  if not silent: print("# %s" % cmd)
+  if not silent:
+    print(f"# {cmd}")
   return subprocess.call(cmd, shell=True)
 
 
 def ParseArguments(argv):
-  if not "tools/dev" in argv[0]:
+  if "tools/dev" not in argv[0]:
     PrintHelpAndExit()
   argv = argv[1:]
 
@@ -50,7 +51,7 @@ def ParseArguments(argv):
     if argstring in ("-h", "--help", "help"):
       PrintHelpAndExit()
     if argstring not in ARCHES:
-      print("Invalid argument: %s" % argstring)
+      print(f"Invalid argument: {argstring}")
       sys.exit(1)
     user_arches.append(argstring)
 
@@ -58,9 +59,7 @@ def ParseArguments(argv):
 
 
 def Exclude(fullpath, exclude_arches):
-  for arch in exclude_arches:
-    if ("/%s/" % arch) in fullpath: return True
-  return False
+  return any(f"/{arch}/" in fullpath for arch in exclude_arches)
 
 
 def Main(argv):
@@ -86,7 +85,7 @@ def Main(argv):
           if Exclude(fullpath, exclude_arches): continue
           gtags.write(fullpath + os.linesep)
 
-  _Call("ctags --fields=+l -L " + gtags_filename)
+  _Call(f"ctags --fields=+l -L {gtags_filename}")
 
 
 if __name__ == "__main__":

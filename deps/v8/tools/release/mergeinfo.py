@@ -29,27 +29,36 @@ def describe_commit(git_working_dir, hash_to_search, one_line=False):
 
 
 def get_followup_commits(git_working_dir, hash_to_search):
-  cmd = ['log', '--grep=' + hash_to_search, GIT_OPTION_HASH_ONLY,
-         'remotes/origin/master'];
+  cmd = [
+      'log',
+      f'--grep={hash_to_search}',
+      GIT_OPTION_HASH_ONLY,
+      'remotes/origin/master',
+  ];
   return git_execute(git_working_dir, cmd).strip().splitlines()
 
 def get_merge_commits(git_working_dir, hash_to_search):
   merges = get_related_commits_not_on_master(git_working_dir, hash_to_search)
   false_merges = get_related_commits_not_on_master(
-    git_working_dir, 'Cr-Branched-From: ' + hash_to_search)
+      git_working_dir, f'Cr-Branched-From: {hash_to_search}')
   false_merges = set(false_merges)
   return ([merge_commit for merge_commit in merges
       if merge_commit not in false_merges])
 
 def get_related_commits_not_on_master(git_working_dir, grep_command):
-  commits = git_execute(git_working_dir, ['log',
-                                          '--all',
-                                          '--grep=' + grep_command,
-                                          GIT_OPTION_ONELINE,
-                                          '--decorate',
-                                          '--not',
-                                          'remotes/origin/master',
-                                          GIT_OPTION_HASH_ONLY])
+  commits = git_execute(
+      git_working_dir,
+      [
+          'log',
+          '--all',
+          f'--grep={grep_command}',
+          GIT_OPTION_ONELINE,
+          '--decorate',
+          '--not',
+          'remotes/origin/master',
+          GIT_OPTION_HASH_ONLY,
+      ],
+  )
   return commits.splitlines()
 
 def get_branches_for_commit(git_working_dir, hash_to_search):
@@ -67,29 +76,25 @@ def get_first_canary(branches):
   canaries = ([currentBranch for currentBranch in branches if
     currentBranch.startswith('remotes/origin/chromium/')])
   canaries.sort()
-  if len(canaries) == 0:
-    return 'No Canary coverage'
-  return canaries[0].split('/')[-1]
+  return 'No Canary coverage' if not canaries else canaries[0].split('/')[-1]
 
 def get_first_v8_version(branches):
   version_re = re.compile("remotes/origin/[0-9]+\.[0-9]+\.[0-9]+")
   versions = filter(lambda branch: version_re.match(branch), branches)
-  if len(versions) == 0:
-    return "--"
-  version = versions[0].split("/")[-1]
-  return version
+  return "--" if len(versions) == 0 else versions[0].split("/")[-1]
 
 def print_analysis(git_working_dir, hash_to_search):
-  print('1.) Searching for "' + hash_to_search + '"')
+  print(f'1.) Searching for "{hash_to_search}"')
   print('=====================ORIGINAL COMMIT START===================')
   print(describe_commit(git_working_dir, hash_to_search))
   print('=====================ORIGINAL COMMIT END=====================')
   print('2.) General information:')
   branches = get_branches_for_commit(git_working_dir, hash_to_search)
-  print('Is LKGR:         ' + str(is_lkgr(branches)))
-  print('Is on Canary:    ' + str(get_first_canary(branches)))
-  print('First V8 branch: ' + str(get_first_v8_version(branches)) + \
-      ' (Might not be the rolled version)')
+  print(f'Is LKGR:         {str(is_lkgr(branches))}')
+  print(f'Is on Canary:    {str(get_first_canary(branches))}')
+  print(
+      f'First V8 branch: {str(get_first_v8_version(branches))} (Might not be the rolled version)'
+  )
   print('3.) Found follow-up commits, reverts and ports:')
   followups = get_followup_commits(git_working_dir, hash_to_search)
   for followup in followups:

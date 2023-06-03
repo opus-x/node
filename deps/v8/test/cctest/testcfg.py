@@ -80,8 +80,11 @@ class TestCase(testcase.TestCase):
     parts = self.name.split('/')
     if parts[0] == 'test-bytecode-generator':
       expectation_file = os.path.join(
-          self.suite.root, 'interpreter', 'bytecode_expectations',
-          '%s.golden' % parts[1])
+          self.suite.root,
+          'interpreter',
+          'bytecode_expectations',
+          f'{parts[1]}.golden',
+      )
       if os.path.exists(expectation_file):
         return [expectation_file]
     return []

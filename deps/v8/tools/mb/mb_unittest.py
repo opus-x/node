@@ -45,7 +45,7 @@ class FakeMBW(mb.MetaBuildWrapper):
     self.rmdirs = []
 
   def ExpandUser(self, path):
-    return '$HOME/%s' % path
+    return f'$HOME/{path}'
 
   def Exists(self, path):
     return self.files.get(path) is not None
@@ -66,9 +66,7 @@ class FakeMBW(mb.MetaBuildWrapper):
 
   def Call(self, cmd, env=None, buffer_output=True):
     self.calls.append(cmd)
-    if self.cmds:
-      return self.cmds.pop(0)
-    return 0, '', ''
+    return self.cmds.pop(0) if self.cmds else (0, '', '')
 
   def Print(self, *args, **kwargs):
     sep = kwargs.get('sep', ' ')

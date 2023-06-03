@@ -30,7 +30,7 @@ class PrepareBranchRevision(Step):
     self["push_hash"] = (self._options.revision or
                          self.GitLog(n=1, format="%H", branch="origin/master"))
     assert self["push_hash"]
-    print("Release revision %s" % self["push_hash"])
+    print(f'Release revision {self["push_hash"]}')
 
 
 class IncrementVersion(Step):
@@ -63,11 +63,10 @@ class IncrementVersion(Step):
     # The new version is not a candidate.
     self["new_candidate"] = "0"
 
-    self["version"] = "%s.%s.%s" % (self["new_major"],
-                                    self["new_minor"],
-                                    self["new_build"])
+    self[
+        "version"] = f'{self["new_major"]}.{self["new_minor"]}.{self["new_build"]}'
 
-    print ("Incremented version to %s" % self["version"])
+    print(f'Incremented version to {self["version"]}')
 
 
 class DetectLastRelease(Step):
@@ -84,9 +83,8 @@ class PrepareChangeLog(Step):
     self["date"] = self.GetDate()
     output = "%s: Version %s\n\n" % (self["date"], self["version"])
     TextToFile(output, self.Config("CHANGELOG_ENTRY_FILE"))
-    commits = self.GitLog(format="%H",
-        git_hash="%s..%s" % (self["last_push_master"],
-                             self["push_hash"]))
+    commits = self.GitLog(
+        format="%H", git_hash=f'{self["last_push_master"]}..{self["push_hash"]}')
 
     # Cache raw commit messages.
     commit_messages = [
@@ -128,7 +126,7 @@ class EditChangeLog(Step):
     changelog_entry = "\n".join(map(Fill80, changelog_entry.splitlines()))
     changelog_entry = changelog_entry.lstrip()
 
-    if changelog_entry == "":  # pragma: no cover
+    if not changelog_entry:  # pragma: no cover
       self.Die("Empty ChangeLog entry.")
 
     # Safe new change log for adding it later to the candidates patch.
@@ -139,7 +137,7 @@ class PushBranchRef(Step):
   MESSAGE = "Create branch ref."
 
   def RunStep(self):
-    cmd = "push origin %s:refs/heads/%s" % (self["push_hash"], self["version"])
+    cmd = f'push origin {self["push_hash"]}:refs/heads/{self["version"]}'
     if self._options.dry_run:
       print("Dry run. Command:\ngit %s" % cmd)
     else:
@@ -151,7 +149,7 @@ class MakeBranch(Step):
 
   def RunStep(self):
     self.Git("reset --hard origin/master")
-    self.Git("new-branch work-branch --upstream origin/%s" % self["version"])
+    self.Git(f'new-branch work-branch --upstream origin/{self["version"]}')
     self.GitCheckoutFile(CHANGELOG_FILE, self["latest_version"])
     self.GitCheckoutFile(VERSION_FILE, self["latest_version"])
     self.GitCheckoutFile(WATCHLISTS_FILE, self["latest_version"])
@@ -195,12 +193,13 @@ class CommitBranch(Step):
     text = FileToText(self.Config("CHANGELOG_ENTRY_FILE"))
 
     # Remove date and trailing white space.
-    text = re.sub(r"^%s: " % self["date"], "", text.rstrip())
+    text = re.sub(f'^{self["date"]}: ', "", text.rstrip())
 
     # Remove indentation and merge paragraphs into single long lines, keeping
     # empty lines between them.
     def SplitMapJoin(split_text, fun, join_text):
       return lambda text: join_text.join(map(fun, text.split(split_text)))
+
     text = SplitMapJoin(
         "\n\n", SplitMapJoin("\n", str.strip, " "), "\n\n")(text)
 
@@ -242,17 +241,16 @@ class TagRevision(Step):
       print ("Dry run. Tagging \"%s\" with %s" %
              (self["commit_title"], self["version"]))
     else:
-      self.vc.Tag(self["version"],
-                  "origin/%s" % self["version"],
-                  self["commit_title"])
+      self.vc.Tag(self["version"], f'origin/{self["version"]}', self["commit_title"])
 
 
 class CleanUp(Step):
   MESSAGE = "Done!"
 
   def RunStep(self):
-    print("Congratulations, you have successfully created version %s."
-          % self["version"])
+    print(
+        f'Congratulations, you have successfully created version {self["version"]}.'
+    )
 
     self.GitCheckout("origin/master")
     self.DeleteBranch("work-branch")

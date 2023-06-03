@@ -20,7 +20,7 @@ def search_all_related_commits(
   all_commits_raw = _find_commits_inbetween(
       start_hash, until, git_working_dir, verbose)
   if verbose:
-    print("All commits between <of> and <until>: " + all_commits_raw)
+    print(f"All commits between <of> and <until>: {all_commits_raw}")
 
   # Adding start hash too
   all_commits = [start_hash]
@@ -62,32 +62,32 @@ def _search_related_commits(
   if not matches:
     return []
 
-  commit_position = matches.group(2)
+  commit_position = matches[2]
   if verbose:
-    print("1.) Commit position to look for: " + commit_position)
+    print(f"1.) Commit position to look for: {commit_position}")
 
-  search_range = start_hash + ".." + until
+  search_range = f"{start_hash}..{until}"
 
   def git_args(grep_pattern):
     return [
-      "log",
-      "--reverse",
-      "--grep=" + grep_pattern,
-      "--format=%H",
-      search_range,
+        "log",
+        "--reverse",
+        f"--grep={grep_pattern}",
+        "--format=%H",
+        search_range,
     ]
 
   found_by_hash = git_execute(
       git_working_dir, git_args(start_hash), verbose).strip()
 
   if verbose:
-    print("2.) Found by hash: " + found_by_hash)
+    print(f"2.) Found by hash: {found_by_hash}")
 
   found_by_commit_pos = git_execute(
       git_working_dir, git_args(commit_position), verbose).strip()
 
   if verbose:
-    print("3.) Found by commit position: " + found_by_commit_pos)
+    print(f"3.) Found by commit position: {found_by_commit_pos}")
 
   # Replace brackets or else they are wrongly interpreted by --grep
   title = title.replace("[", "\\[")
@@ -97,7 +97,7 @@ def _search_related_commits(
       git_working_dir, git_args(title), verbose).strip()
 
   if verbose:
-    print("4.) Found by title: " + found_by_title)
+    print(f"4.) Found by title: {found_by_title}")
 
   hits = (
       _convert_to_array(found_by_hash) +
@@ -117,26 +117,27 @@ def _search_related_commits(
 
 def _find_commits_inbetween(start_hash, end_hash, git_working_dir, verbose):
   commits_between = git_execute(
-        git_working_dir,
-        ["rev-list", "--reverse", start_hash + ".." + end_hash],
-        verbose)
+      git_working_dir,
+      ["rev-list", "--reverse", f"{start_hash}..{end_hash}"],
+      verbose,
+  )
   return commits_between.strip()
 
 def _convert_to_array(string_of_hashes):
   return string_of_hashes.splitlines()
 
 def _remove_duplicates(array):
-   no_duplicates = []
-   for current in array:
-    if not current in no_duplicates:
+  no_duplicates = []
+  for current in array:
+    if current not in no_duplicates:
       no_duplicates.append(current)
-   return no_duplicates
+  return no_duplicates
 
 def git_execute(working_dir, args, verbose=False):
   command = ["git", "-C", working_dir] + args
   if verbose:
-    print("Git working dir: " + working_dir)
-    print("Executing git command:" + str(command))
+    print(f"Git working dir: {working_dir}")
+    print(f"Executing git command:{str(command)}")
   p = Popen(args=command, stdin=PIPE,
             stdout=PIPE, stderr=PIPE)
   output, err = p.communicate()
@@ -144,7 +145,7 @@ def git_execute(working_dir, args, verbose=False):
   if rc != 0:
     raise Exception(err)
   if verbose:
-    print("Git return value: " + output)
+    print(f"Git return value: {output}")
   return output
 
 def _pretty_print_entry(hash, git_dir, pre_text, verbose):
@@ -159,41 +160,41 @@ def _pretty_print_entry(hash, git_dir, pre_text, verbose):
   return pre_text + text_to_print.strip()
 
 def main(options):
-    all_related_commits = search_all_related_commits(
-        options.git_dir,
-        options.of[0],
-        options.until[0],
-        options.separator,
-        options.verbose)
+  all_related_commits = search_all_related_commits(
+      options.git_dir,
+      options.of[0],
+      options.until[0],
+      options.separator,
+      options.verbose)
 
-    sort_key = lambda x: (
-        git_execute(
-            options.git_dir,
-            ["show", "--quiet", "--date=iso", x, "--format=%ad"],
-            options.verbose)).strip()
+  sort_key = lambda x: (
+      git_execute(
+          options.git_dir,
+          ["show", "--quiet", "--date=iso", x, "--format=%ad"],
+          options.verbose)).strip()
 
-    high_level_commits = sorted(all_related_commits.keys(), key=sort_key)
+  high_level_commits = sorted(all_related_commits.keys(), key=sort_key)
 
-    for current_key in high_level_commits:
+  for current_key in high_level_commits:
+    if options.prettyprint:
+      yield _pretty_print_entry(
+          current_key,
+          options.git_dir,
+          "+",
+          options.verbose)
+    else:
+      yield f"+{current_key}"
+
+    found_commits = all_related_commits[current_key]
+    for current_commit in found_commits:
       if options.prettyprint:
         yield _pretty_print_entry(
-            current_key,
+            current_commit,
             options.git_dir,
-            "+",
+            "| ",
             options.verbose)
       else:
-        yield "+" + current_key
-
-      found_commits = all_related_commits[current_key]
-      for current_commit in found_commits:
-        if options.prettyprint:
-          yield _pretty_print_entry(
-              current_commit,
-              options.git_dir,
-              "| ",
-              options.verbose)
-        else:
-          yield "| " + current_commit
+        yield f"| {current_commit}"
 
 if __name__ == "__main__":  # pragma: no cover
   parser = argparse.ArgumentParser(

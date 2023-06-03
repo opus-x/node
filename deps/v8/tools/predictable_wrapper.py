@@ -49,7 +49,7 @@ def main(args):
     if output.stderr:
       print('### Stderr:')
       print(output.stderr)
-    print('### Return code: %s' % output.exit_code)
+    print(f'### Return code: {output.exit_code}')
     if output.HasTimedOut():
       # If we get a timeout in any run, we are in an unpredictable state. Just
       # report it as a failure and don't rerun.

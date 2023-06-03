@@ -26,9 +26,9 @@ def no_arg_cmd(debugger, cmd):
 
 def ptr_arg_cmd(debugger, name, param, cmd):
   if not param:
-    print("'{}' requires an argument".format(name))
+    print(f"'{name}' requires an argument")
     return
-  param = '(void*)({})'.format(param)
+  param = f'(void*)({param})'
   no_arg_cmd(debugger, cmd.format(param))
 
 #####################
@@ -90,26 +90,21 @@ def bta(debugger, *args):
     line = frame.GetLineEntry().GetLine()
     sourceFile = frame.GetLineEntry().GetFileSpec().GetFilename()
     if line:
-      sourceFile = sourceFile + ":" + str(line)
+      sourceFile = f"{sourceFile}:{str(line)}"
 
     if sourceFile is None:
       sourceFile = ""
-    print("[%-2s] %-60s %-40s" % (frame.GetFrameID(),
-                                  functionName.group(1),
-                                  sourceFile))
-    match = assert_re.match(str(functionSignature))
-    if match:
-      if match.group(3) == "false":
+    print("[%-2s] %-60s %-40s" % (frame.GetFrameID(), functionName[1], sourceFile))
+    if match := assert_re.match(str(functionSignature)):
+      if match[3] == "false":
         prefix = "Disallow"
         color = "\033[91m"
       else:
         prefix = "Allow"
         color = "\033[92m"
-      print("%s -> %s %s (%s)\033[0m" % (
-          color, prefix, match.group(2), match.group(1)))
+      print("%s -> %s %s (%s)\033[0m" % (color, prefix, match[2], match[1]))
 
 def __lldb_init_module(debugger, dict):
   debugger.HandleCommand('settings set target.x86-disassembly-flavor intel')
   for cmd in ('job', 'jlh', 'jco', 'jld', 'jtt', 'jst', 'jss', 'bta'):
-    debugger.HandleCommand(
-      'command script add -f lldb_commands.{} {}'.format(cmd, cmd))
+    debugger.HandleCommand(f'command script add -f lldb_commands.{cmd} {cmd}')

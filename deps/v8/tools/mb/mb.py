@@ -311,9 +311,7 @@ class MetaBuildWrapper(object):
 
   def CmdIsolate(self):
     vals = self.GetConfig()
-    if not vals:
-      return 1
-    return self.RunGNIsolate()
+    return 1 if not vals else self.RunGNIsolate()
 
   def CmdLookup(self):
     vals = self.Lookup()
@@ -337,11 +335,9 @@ class MetaBuildWrapper(object):
     target = self.args.target[0]
 
     if self.args.build:
-      ret = self.Build(target)
-      if ret:
+      if ret := self.Build(target):
         return ret
-    ret = self.RunGNIsolate()
-    if ret:
+    if ret := self.RunGNIsolate():
       return ret
 
     if self.args.swarmed:
@@ -365,9 +361,10 @@ class MetaBuildWrapper(object):
         self.PathJoin('tools', 'swarming_client', 'isolate.py'),
         'archive',
         '-s',
-        self.ToSrcRelPath('%s/%s.isolated' % (build_dir, target)),
-        '-I', 'isolateserver.appspot.com',
-      ]
+        self.ToSrcRelPath(f'{build_dir}/{target}.isolated'),
+        '-I',
+        'isolateserver.appspot.com',
+    ]
     ret, out, _ = self.Run(cmd, force_verbose=False)
     if ret:
       return ret
@@ -392,8 +389,8 @@ class MetaBuildWrapper(object):
         self.PathJoin('tools', 'swarming_client', 'isolate.py'),
         'run',
         '-s',
-        self.ToSrcRelPath('%s/%s.isolated' % (build_dir, target)),
-      ]
+        self.ToSrcRelPath(f'{build_dir}/{target}.isolated'),
+    ]
     if self.args.extra_args:
       cmd += ['--'] + self.args.extra_args
     ret, _, _ = self.Run(cmd, force_verbose=True, buffer_output=False)
@@ -411,7 +408,7 @@ class MetaBuildWrapper(object):
     elif self.platform == 'win32':
       os_dim = ('os', 'Windows-10')
     else:
-      raise MBErr('unrecognized platform string "%s"' % self.platform)
+      raise MBErr(f'unrecognized platform string "{self.platform}"')
 
     return [('pool', 'Chrome'),
             ('cpu', 'x86-64'),
@@ -424,13 +421,13 @@ class MetaBuildWrapper(object):
                '"tools/mb/mb.py gerrit-buildbucket-config".')
 
     for luci_tryserver in sorted(self.luci_tryservers):
-      self.Print('[bucket "luci.%s"]' % luci_tryserver)
+      self.Print(f'[bucket "luci.{luci_tryserver}"]')
       for bot in sorted(self.luci_tryservers[luci_tryserver]):
         self.Print('\tbuilder = %s' % bot)
 
     for master in sorted(self.masters):
       if master.startswith('tryserver.'):
-        self.Print('[bucket "master.%s"]' % master)
+        self.Print(f'[bucket "master.{master}"]')
         for bot in sorted(self.masters[master]):
           self.Print('\tbuilder = %s' % bot)
 
@@ -456,45 +453,37 @@ class MetaBuildWrapper(object):
     for config, loc in all_configs.items():
       if config.startswith('//'):
         if not self.Exists(self.ToAbsPath(config)):
-          errs.append('Unknown args file "%s" referenced from "%s".' %
-                      (config, loc))
-      elif not config in self.configs:
-        errs.append('Unknown config "%s" referenced from "%s".' %
-                    (config, loc))
+          errs.append(f'Unknown args file "{config}" referenced from "{loc}".')
+      elif config not in self.configs:
+        errs.append(f'Unknown config "{config}" referenced from "{loc}".')
 
     # Check that every actual config is actually referenced.
-    for config in self.configs:
-      if not config in all_configs:
-        errs.append('Unused config "%s".' % config)
-
+    errs.extend(f'Unused config "{config}".' for config in self.configs
+                if config not in all_configs)
     # Figure out the whole list of mixins, and check that every mixin
     # listed by a config or another mixin actually exists.
     referenced_mixins = set()
     for config, mixins in self.configs.items():
       for mixin in mixins:
-        if not mixin in self.mixins:
-          errs.append('Unknown mixin "%s" referenced by config "%s".' %
-                      (mixin, config))
+        if mixin not in self.mixins:
+          errs.append(f'Unknown mixin "{mixin}" referenced by config "{config}".')
         referenced_mixins.add(mixin)
 
     for mixin in self.mixins:
       for sub_mixin in self.mixins[mixin].get('mixins', []):
-        if not sub_mixin in self.mixins:
-          errs.append('Unknown mixin "%s" referenced by mixin "%s".' %
-                      (sub_mixin, mixin))
+        if sub_mixin not in self.mixins:
+          errs.append(f'Unknown mixin "{sub_mixin}" referenced by mixin "{mixin}".')
         referenced_mixins.add(sub_mixin)
 
     # Check that every mixin defined is actually referenced somewhere.
-    for mixin in self.mixins:
-      if not mixin in referenced_mixins:
-        errs.append('Unreferenced mixin "%s".' % mixin)
-
+    errs.extend(f'Unreferenced mixin "{mixin}".' for mixin in self.mixins
+                if mixin not in referenced_mixins)
     if errs:
-      raise MBErr(('mb config file %s has problems:' % self.args.config_file) +
-                    '\n  ' + '\n  '.join(errs))
+      raise MBErr((f'mb config file {self.args.config_file} has problems:' +
+                   '\n  ') + '\n  '.join(errs))
 
     if print_ok:
-      self.Print('mb config file %s looks ok.' % self.args.config_file)
+      self.Print(f'mb config file {self.args.config_file} looks ok.')
     return 0
 
   def GetConfig(self):
@@ -529,7 +518,7 @@ class MetaBuildWrapper(object):
       fields = l.split(' ')
       name = fields[0]
       val = ' '.join(fields[2:])
-      gn_args.append('%s=%s' % (name, val))
+      gn_args.append(f'{name}={val}')
 
     return ' '.join(gn_args)
 
@@ -540,21 +529,26 @@ class MetaBuildWrapper(object):
       config = self.ConfigFromArgs()
       if config.startswith('//'):
         if not self.Exists(self.ToAbsPath(config)):
-          raise MBErr('args file "%s" not found' % config)
+          raise MBErr(f'args file "{config}" not found')
         vals = self.DefaultVals()
         vals['args_file'] = config
-      else:
-        if not config in self.configs:
-          raise MBErr('Config "%s" not found in %s' %
-                      (config, self.args.config_file))
+      elif config in self.configs:
         vals = self.FlattenConfig(config)
+      else:
+        raise MBErr(f'Config "{config}" not found in {self.args.config_file}')
     return vals
 
   def ReadIOSBotConfig(self):
     if not self.args.master or not self.args.builder:
       return {}
-    path = self.PathJoin(self.chromium_src_dir, 'ios', 'build', 'bots',
-                         self.args.master, self.args.builder + '.json')
+    path = self.PathJoin(
+        self.chromium_src_dir,
+        'ios',
+        'build',
+        'bots',
+        self.args.master,
+        f'{self.args.builder}.json',
+    )
     if not self.Exists(path):
       return {}
 
@@ -567,13 +561,12 @@ class MetaBuildWrapper(object):
 
   def ReadConfigFile(self):
     if not self.Exists(self.args.config_file):
-      raise MBErr('config file not found at %s' % self.args.config_file)
+      raise MBErr(f'config file not found at {self.args.config_file}')
 
     try:
       contents = ast.literal_eval(self.ReadFile(self.args.config_file))
     except SyntaxError as e:
-      raise MBErr('Failed to parse config file "%s": %s' %
-                 (self.args.config_file, e))
+      raise MBErr(f'Failed to parse config file "{self.args.config_file}": {e}')
 
     self.configs = contents['configs']
     self.luci_tryservers = contents.get('luci_tryservers', {})
@@ -586,20 +579,18 @@ class MetaBuildWrapper(object):
 
     for f in self.args.isolate_map_files:
       if not self.Exists(f):
-        raise MBErr('isolate map file not found at %s' % f)
+        raise MBErr(f'isolate map file not found at {f}')
     isolate_maps = {}
     for isolate_map in self.args.isolate_map_files:
       try:
         isolate_map = ast.literal_eval(self.ReadFile(isolate_map))
-        duplicates = set(isolate_map).intersection(isolate_maps)
-        if duplicates:
+        if duplicates := set(isolate_map).intersection(isolate_maps):
           raise MBErr(
-              'Duplicate targets in isolate map files: %s.' %
-              ', '.join(duplicates))
-        isolate_maps.update(isolate_map)
+              f"Duplicate targets in isolate map files: {', '.join(duplicates)}."
+          )
+        isolate_maps |= isolate_map
       except SyntaxError as e:
-        raise MBErr(
-            'Failed to parse isolate map file "%s": %s' % (isolate_map, e))
+        raise MBErr(f'Failed to parse isolate map file "{isolate_map}": {e}')
     return isolate_maps
 
   def ConfigFromArgs(self):
@@ -614,19 +605,22 @@ class MetaBuildWrapper(object):
       raise MBErr('Must specify either -c/--config or '
                   '(-m/--master and -b/--builder)')
 
-    if not self.args.master in self.masters:
-      raise MBErr('Master name "%s" not found in "%s"' %
-                  (self.args.master, self.args.config_file))
+    if self.args.master not in self.masters:
+      raise MBErr(
+          f'Master name "{self.args.master}" not found in "{self.args.config_file}"'
+      )
 
-    if not self.args.builder in self.masters[self.args.master]:
-      raise MBErr('Builder name "%s"  not found under masters[%s] in "%s"' %
-                  (self.args.builder, self.args.master, self.args.config_file))
+    if self.args.builder not in self.masters[self.args.master]:
+      raise MBErr(
+          f'Builder name "{self.args.builder}"  not found under masters[{self.args.master}] in "{self.args.config_file}"'
+      )
 
     config = self.masters[self.args.master][self.args.builder]
     if isinstance(config, dict):
       if self.args.phase is None:
-        raise MBErr('Must specify a build --phase for %s on %s' %
-                    (self.args.builder, self.args.master))
+        raise MBErr(
+            f'Must specify a build --phase for {self.args.builder} on {self.args.master}'
+        )
       phase = str(self.args.phase)
       if phase not in config:
         raise MBErr('Phase %s doesn\'t exist for %s on %s' %
@@ -634,8 +628,9 @@ class MetaBuildWrapper(object):
       return config[phase]
 
     if self.args.phase is not None:
-      raise MBErr('Must not specify a build --phase for %s on %s' %
-                  (self.args.builder, self.args.master))
+      raise MBErr(
+          f'Must not specify a build --phase for {self.args.builder} on {self.args.master}'
+      )
     return config
 
   def FlattenConfig(self, config):
@@ -656,7 +651,7 @@ class MetaBuildWrapper(object):
   def FlattenMixins(self, mixins, vals, visited):
     for m in mixins:
       if m not in self.mixins:
-        raise MBErr('Unknown mixin "%s"' % m)
+        raise MBErr(f'Unknown mixin "{m}"')
 
       visited.append(m)
 
@@ -701,8 +696,7 @@ class MetaBuildWrapper(object):
       # the compile targets to the matching GN labels.
       path = self.args.swarming_targets_file
       if not self.Exists(path):
-        self.WriteFailureAndRaise('"%s" does not exist' % path,
-                                  output_path=None)
+        self.WriteFailureAndRaise(f'"{path}" does not exist', output_path=None)
       contents = self.ReadFile(path)
       swarming_targets = set(contents.splitlines())
 
@@ -713,7 +707,7 @@ class MetaBuildWrapper(object):
 
       gn_runtime_deps_path = self.ToAbsPath(build_dir, 'runtime_deps')
       self.WriteFile(gn_runtime_deps_path, '\n'.join(labels) + '\n')
-      cmd.append('--runtime-deps-list-file=%s' % gn_runtime_deps_path)
+      cmd.append(f'--runtime-deps-list-file={gn_runtime_deps_path}')
 
     ret, output, _ = self.Run(cmd)
     if ret:
@@ -734,13 +728,13 @@ class MetaBuildWrapper(object):
         # latter will result in runtime_deps associated with the executable.
         label = isolate_map[target]['label']
         runtime_deps_targets = [
-            target + '.runtime_deps',
-            'obj/%s.stamp.runtime_deps' % label.replace(':', '/')]
+            f'{target}.runtime_deps',
+            f"obj/{label.replace(':', '/')}.stamp.runtime_deps",
+        ]
       elif fuchsia:
         # Only emit a runtime deps file for the group() target on Fuchsia.
         label = isolate_map[target]['label']
-        runtime_deps_targets = [
-          'obj/%s.stamp.runtime_deps' % label.replace(':', '/')]
+        runtime_deps_targets = [f"obj/{label.replace(':', '/')}.stamp.runtime_deps"]
       elif (isolate_map[target]['type'] == 'script' or
             isolate_map[target].get('label_type') == 'group'):
         # For script targets, the build target is usually a group,
@@ -748,24 +742,22 @@ class MetaBuildWrapper(object):
         # for the label, which lives under the obj/ directory, but it may
         # also be an executable.
         label = isolate_map[target]['label']
-        runtime_deps_targets = [
-            'obj/%s.stamp.runtime_deps' % label.replace(':', '/')]
+        runtime_deps_targets = [f"obj/{label.replace(':', '/')}.stamp.runtime_deps"]
         if self.platform == 'win32':
-          runtime_deps_targets += [ target + '.exe.runtime_deps' ]
+          runtime_deps_targets += [f'{target}.exe.runtime_deps']
         else:
-          runtime_deps_targets += [ target + '.runtime_deps' ]
+          runtime_deps_targets += [f'{target}.runtime_deps']
       elif self.platform == 'win32':
-        runtime_deps_targets = [target + '.exe.runtime_deps']
+        runtime_deps_targets = [f'{target}.exe.runtime_deps']
       else:
-        runtime_deps_targets = [target + '.runtime_deps']
+        runtime_deps_targets = [f'{target}.runtime_deps']
 
       for r in runtime_deps_targets:
         runtime_deps_path = self.ToAbsPath(build_dir, r)
         if self.Exists(runtime_deps_path):
           break
       else:
-        raise MBErr('did not generate any of %s' %
-                    ', '.join(runtime_deps_targets))
+        raise MBErr(f"did not generate any of {', '.join(runtime_deps_targets)}")
 
       runtime_deps = self.ReadFile(runtime_deps_path).splitlines()
 
@@ -794,20 +786,23 @@ class MetaBuildWrapper(object):
 
     self.WriteIsolateFiles(build_dir, target, runtime_deps)
 
-    ret, _, _ = self.Run([
-        self.executable,
-        self.PathJoin('tools', 'swarming_client', 'isolate.py'),
-        'check',
-        '-i',
-        self.ToSrcRelPath('%s/%s.isolate' % (build_dir, target)),
-        '-s',
-        self.ToSrcRelPath('%s/%s.isolated' % (build_dir, target))],
-        buffer_output=False)
+    ret, _, _ = self.Run(
+        [
+            self.executable,
+            self.PathJoin('tools', 'swarming_client', 'isolate.py'),
+            'check',
+            '-i',
+            self.ToSrcRelPath(f'{build_dir}/{target}.isolate'),
+            '-s',
+            self.ToSrcRelPath(f'{build_dir}/{target}.isolated'),
+        ],
+        buffer_output=False,
+    )
 
     return ret
 
   def WriteIsolateFiles(self, build_dir, target, runtime_deps):
-    isolate_path = self.ToAbsPath(build_dir, target + '.isolate')
+    isolate_path = self.ToAbsPath(build_dir, f'{target}.isolate')
     self.WriteFile(isolate_path,
       pprint.pformat({
         'variables': {
@@ -816,17 +811,19 @@ class MetaBuildWrapper(object):
       }) + '\n')
 
     self.WriteJSON(
-      {
-        'args': [
-          '--isolated',
-          self.ToSrcRelPath('%s/%s.isolated' % (build_dir, target)),
-          '--isolate',
-          self.ToSrcRelPath('%s/%s.isolate' % (build_dir, target)),
-        ],
-        'dir': self.chromium_src_dir,
-        'version': 1,
-      },
-      isolate_path + 'd.gen.json',
+        {
+            'args': [
+                '--isolated',
+                self.ToSrcRelPath(f'{build_dir}/{target}.isolated'),
+                '--isolate',
+                self.ToSrcRelPath(f'{build_dir}/{target}.isolate'),
+            ],
+            'dir':
+            self.chromium_src_dir,
+            'version':
+            1,
+        },
+        f'{isolate_path}d.gen.json',
     )
 
   def MapTargetsToLabels(self, isolate_map, targets):
@@ -838,15 +835,14 @@ class MetaBuildWrapper(object):
         labels.append(target)
       elif target.startswith('//'):
         labels.append(target)
-      else:
-        if target in isolate_map:
-          if isolate_map[target]['type'] == 'unknown':
-            err += ('test target "%s" type is unknown\n' % target)
-          else:
-            labels.append(isolate_map[target]['label'])
+      elif target in isolate_map:
+        if isolate_map[target]['type'] == 'unknown':
+          err += ('test target "%s" type is unknown\n' % target)
         else:
-          err += ('target "%s" not found in '
-                  '//infra/mb/gn_isolate_map.pyl\n' % target)
+          labels.append(isolate_map[target]['label'])
+      else:
+        err += ('target "%s" not found in '
+                '//infra/mb/gn_isolate_map.pyl\n' % target)
 
     return err, labels
 
@@ -870,36 +866,32 @@ class MetaBuildWrapper(object):
 
   def GNArgs(self, vals, expand_imports=False):
     if vals['cros_passthrough']:
-      if not 'GN_ARGS' in os.environ:
+      if 'GN_ARGS' not in os.environ:
         raise MBErr('MB is expecting GN_ARGS to be in the environment')
       gn_args = os.environ['GN_ARGS']
       if not re.search('target_os.*=.*"chromeos"', gn_args):
-        raise MBErr('GN_ARGS is missing target_os = "chromeos": (GN_ARGS=%s)' %
-                    gn_args)
+        raise MBErr(f'GN_ARGS is missing target_os = "chromeos": (GN_ARGS={gn_args})')
     else:
       gn_args = vals['gn_args']
 
     if self.args.goma_dir:
-      gn_args += ' goma_dir="%s"' % self.args.goma_dir
+      gn_args += f' goma_dir="{self.args.goma_dir}"'
 
-    android_version_code = self.args.android_version_code
-    if android_version_code:
-      gn_args += ' android_default_version_code="%s"' % android_version_code
+    if android_version_code := self.args.android_version_code:
+      gn_args += f' android_default_version_code="{android_version_code}"'
 
-    android_version_name = self.args.android_version_name
-    if android_version_name:
-      gn_args += ' android_default_version_name="%s"' % android_version_name
+    if android_version_name := self.args.android_version_name:
+      gn_args += f' android_default_version_name="{android_version_name}"'
 
     args_gn_lines = []
     parsed_gn_args = {}
 
-    args_file = vals.get('args_file', None)
-    if args_file:
+    if args_file := vals.get('args_file', None):
       if expand_imports:
         content = self.ReadFile(self.ToAbsPath(args_file))
         parsed_gn_args = gn_helpers.FromGNArgs(content)
       else:
-        args_gn_lines.append('import("%s")' % args_file)
+        args_gn_lines.append(f'import("{args_file}")')
 
     # Canonicalize the arg string into a sorted, newline-separated list
     # of key-value pairs, and de-dup the keys if need be so that only
@@ -921,17 +913,14 @@ class MetaBuildWrapper(object):
     return self.RelPath(path, self.chromium_src_dir)
 
   def RunGNAnalyze(self, vals):
-    # Analyze runs before 'gn gen' now, so we need to run gn gen
-    # in order to ensure that we have a build directory.
-    ret = self.RunGNGen(vals, compute_grit_inputs_for_analyze=True)
-    if ret:
+    if ret := self.RunGNGen(vals, compute_grit_inputs_for_analyze=True):
       return ret
 
     build_path = self.args.path[0]
     input_path = self.args.input_path[0]
-    gn_input_path = input_path + '.gn'
+    gn_input_path = f'{input_path}.gn'
     output_path = self.args.output_path[0]
-    gn_output_path = output_path + '.gn'
+    gn_output_path = f'{output_path}.gn'
 
     inp = self.ReadInputJSON(['files', 'test_targets',
                               'additional_compile_targets'])
@@ -954,9 +943,7 @@ class MetaBuildWrapper(object):
           }, output_path)
       return 0
 
-    gn_inp = {}
-    gn_inp['files'] = ['//' + f for f in inp['files'] if not f.startswith('//')]
-
+    gn_inp = {'files': [f'//{f}' for f in inp['files'] if not f.startswith('//')]}
     isolate_map = self.ReadIsolateMap()
     err, gn_inp['additional_compile_targets'] = self.MapTargetsToLabels(
         isolate_map, inp['additional_compile_targets'])
@@ -967,10 +954,10 @@ class MetaBuildWrapper(object):
         isolate_map, inp['test_targets'])
     if err:
       raise MBErr(err)
-    labels_to_targets = {}
-    for i, label in enumerate(gn_inp['test_targets']):
-      labels_to_targets[label] = inp['test_targets'][i]
-
+    labels_to_targets = {
+        label: inp['test_targets'][i]
+        for i, label in enumerate(gn_inp['test_targets'])
+    }
     try:
       self.WriteJSON(gn_inp, gn_input_path)
       cmd = self.GNCmd('analyze', build_path, gn_input_path, gn_output_path)
@@ -1061,18 +1048,17 @@ class MetaBuildWrapper(object):
     path = self.args.input_path[0]
     output_path = self.args.output_path[0]
     if not self.Exists(path):
-      self.WriteFailureAndRaise('"%s" does not exist' % path, output_path)
+      self.WriteFailureAndRaise(f'"{path}" does not exist', output_path)
 
     try:
       inp = json.loads(self.ReadFile(path))
     except Exception as e:
-      self.WriteFailureAndRaise('Failed to read JSON input from "%s": %s' %
-                                (path, e), output_path)
+      self.WriteFailureAndRaise(f'Failed to read JSON input from "{path}": {e}',
+                                output_path)
 
     for k in required_keys:
-      if not k in inp:
-        self.WriteFailureAndRaise('input file is missing a "%s" key' % k,
-                                  output_path)
+      if k not in inp:
+        self.WriteFailureAndRaise(f'input file is missing a "{k}" key', output_path)
 
     return inp
 
@@ -1086,8 +1072,7 @@ class MetaBuildWrapper(object):
       self.WriteFile(path, json.dumps(obj, indent=2, sort_keys=True) + '\n',
                      force_verbose=force_verbose)
     except Exception as e:
-      raise MBErr('Error %s writing to the output path "%s"' %
-                 (e, path))
+      raise MBErr(f'Error {e} writing to the output path "{path}"')
 
   def CheckCompile(self, master, builder):
     url_template = self.args.url_template + '/{builder}/builds/_all?as_text=1'
@@ -1104,11 +1089,9 @@ class MetaBuildWrapper(object):
     if not successes:
       return "no successful builds"
     build = builds[str(successes[0])]
-    step_names = set([step["name"] for step in build["steps"]])
-    compile_indicators = set(["compile", "compile (with patch)", "analyze"])
-    if compile_indicators & step_names:
-      return "compiles"
-    return "does not compile"
+    step_names = {step["name"] for step in build["steps"]}
+    compile_indicators = {"compile", "compile (with patch)", "analyze"}
+    return "compiles" if compile_indicators & step_names else "does not compile"
 
   def PrintCmd(self, cmd, env):
     if self.platform == 'win32':
@@ -1122,7 +1105,7 @@ class MetaBuildWrapper(object):
 
     def print_env(var):
       if env and var in env:
-        self.Print('%s%s=%s' % (env_prefix, var, env_quoter(env[var])))
+        self.Print(f'{env_prefix}{var}={env_quoter(env[var])}')
 
     print_env('LLVM_FORCE_HEAD_REVISION')
 
@@ -1254,7 +1237,7 @@ ALL_META_CHARS = UNSAFE_FOR_CMD.union(set('"'))
 
 def QuoteForSet(arg):
   if any(a in UNSAFE_FOR_SET for a in arg):
-    arg = ''.join('^' + a if a in UNSAFE_FOR_SET else a for a in arg)
+    arg = ''.join(f'^{a}' if a in UNSAFE_FOR_SET else a for a in arg)
   return arg
 
 
@@ -1268,7 +1251,7 @@ def QuoteForCmd(arg):
   # double quotes; if it does, quote everything (including the double
   # quotes) for safety.
   if any(a in UNSAFE_FOR_CMD for a in arg):
-    arg = ''.join('^' + a if a in ALL_META_CHARS else a for a in arg)
+    arg = ''.join(f'^{a}' if a in ALL_META_CHARS else a for a in arg)
   return arg
 
 

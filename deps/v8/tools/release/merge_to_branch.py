@@ -75,25 +75,29 @@ class SearchArchitecturePorts(Step):
     port_revision_list = []
     for revision in self["full_revision_list"]:
       # Search for commits which matches the "Port XXX" pattern.
-      git_hashes = self.GitLog(reverse=True, format="%H",
-                               grep="^[Pp]ort %s" % revision,
-                               branch=self.vc.RemoteMasterBranch())
+      git_hashes = self.GitLog(
+          reverse=True,
+          format="%H",
+          grep=f"^[Pp]ort {revision}",
+          branch=self.vc.RemoteMasterBranch(),
+      )
       for git_hash in git_hashes.splitlines():
         revision_title = self.GitLog(n=1, format="%s", git_hash=git_hash)
 
         # Is this revision included in the original revision list?
         if git_hash in self["full_revision_list"]:
-          print("Found port of %s -> %s (already included): %s"
-                % (revision, git_hash, revision_title))
+          print(
+              f"Found port of {revision} -> {git_hash} (already included): {revision_title}"
+          )
         else:
-          print("Found port of %s -> %s: %s"
-                % (revision, git_hash, revision_title))
+          print(f"Found port of {revision} -> {git_hash}: {revision_title}")
           port_revision_list.append(git_hash)
 
     # Do we find any port?
-    if len(port_revision_list) > 0:
-      if self.Confirm("Automatically add corresponding ports (%s)?"
-                      % ", ".join(port_revision_list)):
+    if port_revision_list:
+      if self.Confirm(
+          f'Automatically add corresponding ports ({", ".join(port_revision_list)})?'
+      ):
         #: 'y': Add ports to revision list.
         self["full_revision_list"].extend(port_revision_list)
 
@@ -103,8 +107,8 @@ class CreateCommitMessage(Step):
 
   def _create_commit_description(self, commit_hash):
     patch_merge_desc = self.GitLog(n=1, format="%s", git_hash=commit_hash)
-    description = "Merged: " + patch_merge_desc + "\n"
-    description += "Revision: " + commit_hash + "\n\n"
+    description = f"Merged: {patch_merge_desc}" + "\n"
+    description += f"Revision: {commit_hash}" + "\n\n"
     return description
 
   def RunStep(self):
@@ -119,8 +123,9 @@ class CreateCommitMessage(Step):
 
     if len(self["full_revision_list"]) > 1:
       self["commit_title"] = "Merged: Squashed multiple commits."
-      for commit_hash in self["full_revision_list"]:
-        msg_pieces.append(self._create_commit_description(commit_hash))
+      msg_pieces.extend(
+          self._create_commit_description(commit_hash)
+          for commit_hash in self["full_revision_list"])
     else:
       commit_hash = self["full_revision_list"][0]
       full_description = self._create_commit_description(commit_hash).split("\n")
@@ -128,7 +133,7 @@ class CreateCommitMessage(Step):
       #Truncate title because of code review tool
       title = full_description[0]
       if len(title) > 100:
-        title = title[:96] + " ..."
+        title = f"{title[:96]} ..."
 
       self["commit_title"] = title
       msg_pieces.append(full_description[1] + "\n\n")
@@ -140,9 +145,8 @@ class CreateCommitMessage(Step):
         bugs.extend(s.strip() for s in bug.split(","))
       gerrit_bug = GetCommitMessageFooterMap(msg).get('Bug', '')
       bugs.extend(s.strip() for s in gerrit_bug.split(","))
-    bug_aggregate = ",".join(
-        sorted(filter(lambda s: s and s != "none", set(bugs))))
-    if bug_aggregate:
+    if bug_aggregate := ",".join(
+        sorted(filter(lambda s: s and s != "none", set(bugs)))):
       # TODO(machenbach): Use proper gerrit footer for bug after switch to
       # gerrit. Keep BUG= for now for backwards-compatibility.
       msg_pieces.append("BUG=%s\nLOG=N\n" % bug_aggregate)
@@ -157,8 +161,7 @@ class ApplyPatches(Step):
 
   def RunStep(self):
     for commit_hash in self["full_revision_list"]:
-      print("Applying patch for %s to %s..."
-            % (commit_hash, self["merge_to_branch"]))
+      print(f'Applying patch for {commit_hash} to {self["merge_to_branch"]}...')
       patch = self.GitGetPatch(commit_hash)
       TextToFile(patch, self.Config("TEMPORARY_PATCH_FILE"))
       self.ApplyPatch(self.Config("TEMPORARY_PATCH_FILE"))
@@ -190,9 +193,9 @@ class CleanUp(Step):
   def RunStep(self):
     self.CommonCleanup()
     print("*** SUMMARY ***")
-    print("branch: %s" % self["merge_to_branch"])
+    print(f'branch: {self["merge_to_branch"]}')
     if self["revision_list"]:
-      print("patches: %s" % self["revision_list"])
+      print(f'patches: {self["revision_list"]}')
 
 
 class MergeToBranch(ScriptsBase):
@@ -234,22 +237,23 @@ class MergeToBranch(ScriptsBase):
 
     # Make sure to use git hashes in the new workflows.
     for revision in options.revisions:
-      if (IsSvnNumber(revision) or
-          (revision[0:1] == "r" and IsSvnNumber(revision[1:]))):
+      if (IsSvnNumber(revision)
+          or revision[:1] == "r" and IsSvnNumber(revision[1:])):
         print("Please provide full git hashes of the patches to merge.")
-        print("Got: %s" % revision)
+        print(f"Got: {revision}")
         return False
     return True
 
   def _Config(self):
     return {
-      "BRANCHNAME": "prepare-merge",
-      "PERSISTFILE_BASENAME": RELEASE_WORKDIR + "v8-merge-to-branch-tempfile",
-      "ALREADY_MERGING_SENTINEL_FILE":
-          RELEASE_WORKDIR + "v8-merge-to-branch-tempfile-already-merging",
-      "TEMPORARY_PATCH_FILE":
-          RELEASE_WORKDIR + "v8-prepare-merge-tempfile-temporary-patch",
-      "COMMITMSG_FILE": RELEASE_WORKDIR + "v8-prepare-merge-tempfile-commitmsg",
+        "BRANCHNAME": "prepare-merge",
+        "PERSISTFILE_BASENAME": f"{RELEASE_WORKDIR}v8-merge-to-branch-tempfile",
+        "ALREADY_MERGING_SENTINEL_FILE":
+        f"{RELEASE_WORKDIR}v8-merge-to-branch-tempfile-already-merging",
+        "TEMPORARY_PATCH_FILE":
+        f"{RELEASE_WORKDIR}v8-prepare-merge-tempfile-temporary-patch",
+        "COMMITMSG_FILE":
+        f"{RELEASE_WORKDIR}v8-prepare-merge-tempfile-commitmsg",
     }
 
   def _Steps(self):

@@ -234,16 +234,14 @@ def get_meta_data(content):
   """Extracts original-source-file paths from test case content."""
   sources = []
   for line in content.splitlines():
-    match = SOURCE_RE.match(line)
-    if match:
+    if match := SOURCE_RE.match(line):
       sources.append(match.group(1))
   return {'sources': sources}
 
 
 def content_bailout(content, ignore_fun):
   """Print failure state and return if ignore_fun matches content."""
-  bug = (ignore_fun(content) or '').strip()
-  if bug:
+  if bug := (ignore_fun(content) or '').strip():
     print(FAILURE_HEADER_TEMPLATE % dict(
         configs='', source_key='', suppression=bug))
     return True
@@ -265,8 +263,7 @@ def pass_bailout(output, step_number):
 
 def fail_bailout(output, ignore_by_output_fun):
   """Print failure state and return if ignore_by_output_fun matches output."""
-  bug = (ignore_by_output_fun(output.stdout) or '').strip()
-  if bug:
+  if bug := (ignore_by_output_fun(output.stdout) or '').strip():
     print(FAILURE_HEADER_TEMPLATE % dict(
         configs='', source_key='', suppression=bug))
     return True
@@ -278,25 +275,25 @@ def print_difference(
     first_config_output, second_config_output, difference, source=None):
   # The first three entries will be parsed by clusterfuzz. Format changes
   # will require changes on the clusterfuzz side.
-  first_config_label = '%s,%s' % (options.first_arch, options.first_config)
-  second_config_label = '%s,%s' % (options.second_arch, options.second_config)
+  first_config_label = f'{options.first_arch},{options.first_config}'
+  second_config_label = f'{options.second_arch},{options.second_config}'
   source_file_text = SOURCE_FILE_TEMPLATE % source if source else ''
-  print((FAILURE_TEMPLATE % dict(
-      configs='%s:%s' % (first_config_label, second_config_label),
+  print(((FAILURE_TEMPLATE % dict(
+      configs=f'{first_config_label}:{second_config_label}',
       source_file_text=source_file_text,
       source_key=source_key,
-      suppression='', # We can't tie bugs to differences.
+      suppression='',
       first_config_label=first_config_label,
       second_config_label=second_config_label,
       first_config_flags=' '.join(first_config_flags),
       second_config_flags=' '.join(second_config_flags),
-      first_config_output=
-          first_config_output.stdout.decode('utf-8', 'replace'),
-      second_config_output=
-          second_config_output.stdout.decode('utf-8', 'replace'),
+      first_config_output=first_config_output.stdout.decode(
+          'utf-8', 'replace'),
+      second_config_output=second_config_output.stdout.decode(
+          'utf-8', 'replace'),
       source=source,
       difference=difference.decode('utf-8', 'replace'),
-  )).encode('utf-8', 'replace'))
+  ))).encode('utf-8', 'replace'))
 
 
 def main():
@@ -329,7 +326,7 @@ def main():
       preamble.append(ARCH_MOCKS)
     args = [d8] + config_flags + preamble + [testcase]
     if config_label:
-      print('# Command line for %s comparison:' % config_label)
+      print(f'# Command line for {config_label} comparison:')
       print(' '.join(args))
     if d8.endswith('.py'):
       # Wrap with python in tests.
@@ -417,7 +414,7 @@ if __name__ == "__main__":
   except Exception as e:
     print(FAILURE_HEADER_TEMPLATE % dict(
         configs='', source_key='', suppression='internal_error'))
-    print('# Internal error: %s' % e)
+    print(f'# Internal error: {e}')
     traceback.print_exc(file=sys.stdout)
     result = RETURN_FAIL
 

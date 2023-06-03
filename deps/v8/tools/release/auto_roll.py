@@ -88,8 +88,9 @@ class DetectRevisionToRoll(Step):
         self["roll"] = revision
         break
     else:
-      print("There is no newer v8 revision than the one in Chromium (%s)."
-            % self["last_roll"])
+      print(
+          f'There is no newer v8 revision than the one in Chromium ({self["last_roll"]}).'
+      )
       self['json_output']['monitoring_state'] = 'up_to_date'
       return True
 
@@ -147,19 +148,16 @@ class UploadCL(Step):
     self['json_output']['monitoring_state'] = 'upload'
     cwd = self._options.chromium
     # Patch DEPS file.
-    if self.Command("gclient", "setdep -r src/v8@%s" %
-                    self["roll"], cwd=cwd) is None:
-      self.Die("Failed to create deps for %s" % self["roll"])
+    if (self.Command("gclient", f'setdep -r src/v8@{self["roll"]}', cwd=cwd) is
+        None):
+      self.Die(f'Failed to create deps for {self["roll"]}')
 
-    message = []
-    message.append("Update V8 to %s." % self["roll_title"].lower())
-
-    message.append(
-        ROLL_SUMMARY % (self["last_roll"][:8], self["roll"][:8]))
-
-    message.append(ISSUE_MSG)
-
-    message.append("TBR=%s" % self._options.reviewer)
+    message = [f'Update V8 to {self["roll_title"].lower()}.']
+    message.extend((
+        ROLL_SUMMARY % (self["last_roll"][:8], self["roll"][:8]),
+        ISSUE_MSG,
+        f"TBR={self._options.reviewer}",
+    ))
     self.GitCommit("\n\n".join(message),  author=self._options.author, cwd=cwd)
     if not self._options.dry_run:
       self.GitUpload(force=True,
@@ -184,7 +182,7 @@ class CleanUp(Step):
           % self["roll"])
 
     # Clean up all temporary files.
-    Command("rm", "-f %s*" % self._config["PERSISTFILE_BASENAME"])
+    Command("rm", f'-f {self._config["PERSISTFILE_BASENAME"]}*')
 
 
 class AutoRoll(ScriptsBase):

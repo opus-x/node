@@ -150,7 +150,7 @@ class TestCase(testcase.D8TestCase):
     # the extension in the first place.
     if os.path.exists(base_path + self._get_suffix()):
       return base_path + self._get_suffix()
-    return base_path + '.mjs'
+    return f'{base_path}.mjs'
 
 
 class TestCombiner(testsuite.TestCombiner):
@@ -176,12 +176,7 @@ class TestCombiner(testsuite.TestCombiner):
     source_code = test.get_source()
     # Maybe we could just update the tests to await all async functions they
     # call?
-    if 'async' in source_code:
-      return None
-
-    # TODO(machenbach): Remove grouping if combining tests in a flag-independent
-    # way works well.
-    return 1
+    return None if 'async' in source_code else 1
 
   def _combined_test_class(self):
     return CombinedTest
@@ -243,18 +238,15 @@ class CombinedTest(testcase.D8TestCase):
     for flag1, flag2 in itertools.izip(flags, flags[1:] + ['-']):
       if not flag2.startswith('-'):
         assert '=' not in flag1
-        yield flag1 + '=' + flag2
+        yield f'{flag1}={flag2}'
       elif flag1.startswith('-'):
         yield flag1
 
   def _is_flag_blacklisted(self, flag):
-    for item in COMBINE_TESTS_FLAGS_BLACKLIST:
-      if isinstance(item, basestring):
-        if item == flag:
-          return True
-      elif item.match(flag):
-        return True
-    return False
+    return any(
+        isinstance(item, basestring) and item == flag
+        or not isinstance(item, basestring) and item.match(flag)
+        for item in COMBINE_TESTS_FLAGS_BLACKLIST)
 
   def _get_combined_flags(self, flags_gen):
     """Combines all flags - dedupes, keeps order and filters some flags.

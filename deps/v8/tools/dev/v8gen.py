@@ -134,12 +134,9 @@ class GenerateGnArgs(object):
     if not self._options.outdir:
       # Derive output directory from builder name.
       self._options.outdir = _sanitize_nonalpha(self._options.builder)
-    else:
-      # Also, if this should work on windows, we might need to use \ where
-      # outdir is used as path, while using / if it's used in a gn context.
-      if self._options.outdir.startswith('/'):
-        self.parser.error(
-            'only output directories relative to %s are supported' % OUT_DIR)
+    elif self._options.outdir.startswith('/'):
+      self.parser.error(
+          f'only output directories relative to {OUT_DIR} are supported')
 
     if not self._options.builder:
       # Derive builder from output directory.
@@ -147,8 +144,9 @@ class GenerateGnArgs(object):
 
     # Check for builder/config in mb config.
     if self._options.builder not in self._mbw.masters[self._options.master]:
-      print('%s does not exist in %s for %s' % (
-          self._options.builder, CONFIG, self._options.master))
+      print(
+          f'{self._options.builder} does not exist in {CONFIG} for {self._options.master}'
+      )
       return 1
 
     # TODO(machenbach): Check if the requested configurations has switched to
@@ -246,17 +244,13 @@ class GenerateGnArgs(object):
   @property
   def _goma_args(self):
     """Gn args for using goma."""
-    # Specify goma args if we want to use goma and if goma isn't specified
-    # via command line already. The command-line always has precedence over
-    # any other specification.
-    if (self._use_goma and
-        not any(re.match(r'use_goma\s*=.*', x) for x in self._gn_args)):
-      if self._need_goma_dir:
-        return 'use_goma=true\ngoma_dir="%s"' % self._goma_dir
-      else:
-        return 'use_goma=true'
-    else:
+    if not self._use_goma or any(
+        re.match(r'use_goma\s*=.*', x) for x in self._gn_args):
       return ''
+    if self._need_goma_dir:
+      return 'use_goma=true\ngoma_dir="%s"' % self._goma_dir
+    else:
+      return 'use_goma=true'
 
   def _append_gn_args(self, type, gn_args_path, more_gn_args):
     """Append extra gn arguments to the generated args.gn file."""
@@ -282,7 +276,7 @@ class GenerateGnArgs(object):
     # handling. This script can be used in any v8 checkout.
     workdir = self._find_work_dir(os.getcwd())
     if workdir != os.getcwd():
-      self.verbose_print_1('cd ' + workdir)
+      self.verbose_print_1(f'cd {workdir}')
       os.chdir(workdir)
 
     # Initialize MB as a library.
@@ -292,7 +286,7 @@ class GenerateGnArgs(object):
     self._mbw.ParseArgs(['lookup', '-f', CONFIG])
     self._mbw.ReadConfigFile()
 
-    if not self._options.master in self._mbw.masters:
+    if self._options.master not in self._mbw.masters:
       print('%s not found in %s\n' % (self._options.master, CONFIG))
       print('Choose one of:\n%s\n' % (
           '\n'.join(sorted(self._mbw.masters.keys()))))

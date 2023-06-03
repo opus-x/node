@@ -39,18 +39,18 @@ def WriteFile(filename, content):
 
 
 def FetchAndExtract(arch):
-  archdir = os.path.join(BINUTILS_DIR, 'Linux_' + arch)
+  archdir = os.path.join(BINUTILS_DIR, f'Linux_{arch}')
   tarball = os.path.join(archdir, BINUTILS_FILE)
   outdir = os.path.join(archdir, BINUTILS_OUT)
 
-  sha1file = tarball + '.sha1'
+  sha1file = f'{tarball}.sha1'
   if not os.path.exists(sha1file):
-    print("WARNING: No binutils found for your architecture (%s)!" % arch)
+    print(f"WARNING: No binutils found for your architecture ({arch})!")
     return 0
 
   checksum = ReadFile(sha1file)
 
-  stampfile = tarball + '.stamp'
+  stampfile = f'{tarball}.stamp'
   if os.path.exists(stampfile):
     if (os.path.exists(tarball) and
         os.path.exists(outdir) and
@@ -93,10 +93,7 @@ def main(args):
     return FetchAndExtract(arch)
   if arch == 'ia32':
     ret = FetchAndExtract(arch)
-    if ret != 0:
-      return ret
-    # Fetch the x64 toolchain as well for official bots with 64-bit kernels.
-    return FetchAndExtract('x64')
+    return ret if ret != 0 else FetchAndExtract('x64')
   return 0
 
 
